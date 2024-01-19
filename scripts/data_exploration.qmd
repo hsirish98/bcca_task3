@@ -1,0 +1,51 @@
+---
+title: "Material Data Wrangling"
+author: "Hannah Irish"
+format: html
+editor: visual
+---
+
+Load packages
+
+```{r}
+
+library(tidyverse)
+
+
+```
+
+Read in policy database
+
+```{r}
+
+policy_database <- read_csv(here::here("data/Policy_Database_F23.csv")) %>%
+  janitor::clean_names()
+  # Convert the "materials" column to lowercase
+  policy_database$covered_material_s <- tolower(policy_database$covered_material_s)
+
+```
+
+Count the mentions of each material
+
+```{r}
+
+material_list <- c("steel", "aluminum", "insul", "glass", "concrete", "cement", "asphalt", "wood", "timber")
+
+for (material in material_list) {
+  policy_database[[material]] <- 0
+}
+
+for (material in material_list){
+  policy_database[[material]] <- str_count(policy_database$covered_material_s, material)
+}
+
+for(material in material_list){
+  policy_database[[material]] <- ifelse(policy_database[[material]] >0 ,1,0)
+}
+
+check_df <- policy_database %>%
+  select(2, 20, 46:ncol(policy_database))
+
+org_df <- check_df %>%
+  summarise_at(c(3:ncol(check_df)), sum, na.rm = TRUE)
+```
