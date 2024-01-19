@@ -9,6 +9,7 @@ Load packages
 
 ```{r}
 
+## load tidyverse package 
 library(tidyverse)
 
 
@@ -18,9 +19,10 @@ Read in policy database
 
 ```{r}
 
+##
 policy_database <- read_csv(here::here("data/Policy_Database_F23.csv")) %>%
   janitor::clean_names()
-  # Convert the "materials" column to lowercase
+  # Convert the "materials" column to lowercase so they'll be captured appropriately
   policy_database$covered_material_s <- tolower(policy_database$covered_material_s)
 
 ```
@@ -29,23 +31,31 @@ Count the mentions of each material
 
 ```{r}
 
+##make a list of the materials to capture 
 material_list <- c("steel", "aluminum", "insul", "glass", "concrete", "cement", "asphalt", "wood", "timber")
 
+
+##initialize material column to 0 in policy_database
 for (material in material_list) {
   policy_database[[material]] <- 0
 }
 
+
+##use str_count to count everytime a policy mentions one of these materials
 for (material in material_list){
   policy_database[[material]] <- str_count(policy_database$covered_material_s, material)
 }
 
+## label as 1 if the material is included and as 0 if it's not
 for(material in material_list){
   policy_database[[material]] <- ifelse(policy_database[[material]] >0 ,1,0)
 }
 
-check_df <- policy_database %>%
+# new database to investigate that functions worked correctly
+policy_database_materials <- policy_database %>%
   select(2, 20, 46:ncol(policy_database))
 
-org_df <- check_df %>%
+# sum the material counts to get total policies which mention them
+sums_sf <- policy_database_materials %>%
   summarise_at(c(3:ncol(check_df)), sum, na.rm = TRUE)
 ```
