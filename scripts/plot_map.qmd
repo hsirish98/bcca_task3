@@ -1,0 +1,122 @@
+---
+title: "Spatial Map Data"
+format: html
+editor: visual
+---
+
+## Spatial Map Creation
+
+Load packages
+
+```{r}
+
+library(tidyverse)
+library(sf)
+library(ggplot2)
+library(maps)
+```
+
+Read in data
+
+```{r}
+
+data_base <- read_csv(here::here("data/Working_Policy_Database_spatial.csv")) %>% 
+  janitor::clean_names() 
+  
+  
+lat_lon_df <- data_base %>% 
+  select(title_of_policy, 
+         lat, lon, 
+         policy_type, 
+         legal_status, 
+         lever, 
+         specific_lever, 
+         location) 
+
+lat_lon_df <- lat_lon_df[!is.na(lat_lon_df$lon), ]
+lat_lon_df <- lat_lon_df[!is.na(lat_lon_df$lat), ]
+
+
+
+data_sf <- st_as_sf(lat_lon_df, coords = c("lon", "lat"), crs = 4326)
+
+
+
+```
+
+Policy Types Wrangling
+
+```{r}
+
+unique_types <- unique(data_sf$policy_type)
+
+unique_types
+
+data_type_remove_na <- data_sf[!is.na(data_sf$policy_type), ]
+
+data_type_update <- data_type_remove_na %>% 
+  mutate(type_spec = case_when(
+    policy_type == "Plan" ~ "Plan/Recommendation",
+    policy_type == "Recommendation" ~ "Plan/Recommendation",
+    policy_type == "Law" ~ "Law, Standard, etc.",
+    policy_type == "By-Law" ~ "Law, Standard, etc.",
+    policy_type == "Resolution" ~ "Law, Standard, etc.",
+    policy_type == "Standard" ~ "Law, Standard, etc.",
+    policy_type == "Decree" ~ "Law, Standard, etc.",
+    policy_type == "Executive Order" ~ "Executive Order",
+    policy_type == "Voluntary Program" ~ "Voluntary Program",
+  ))
+
+
+```
+
+Read in map
+
+```{r}
+
+data_sf_plot_stat <- data_sf %>% 
+  filter(legal_status %in% c("Statutory", "Non-Statutory"))
+
+world_map <- map_data("world")
+
+world_map <- subset(world_map, region != "Antarctica")
+
+geom_world <- ggplot()+
+  geom_polygon(data = world_map, aes(x = long, y = lat, group = group), 
+               fill = "grey90", color = "gray40") +
+  coord_sf(crs = 4326)  # Set CRS to WGS 84 (EPSG:4326)
+
+
+
+geom_with_points <- geom_world + 
+  geom_sf(data = data_type_update, aes(color = type_spec), fill = "black", size = 2, shape = 18,  alpha=0.9) +
+  scale_color_viridis_d(option = "inferno", end =0.8)+
+  labs(title = "Embodied Carbon Policies by Policy Type")+
+  theme_void()+
+  theme(legend.position = "bottom",# Move legend to the bottom
+        legend.title = element_blank(),
+        plot.title = element_text(hjust = 0.5),
+        aspect.ratio = 0.5
+        )  
+
+geom_with_points
+```
+
+```{r}
+
+
+data_year <- data_base[!is.na(data_base$date_enacted), ]
+
+ggplot(data = data_year, aes(x = factor(date_enacted))) +
+  geom_histogram(stat = "count", fill = "royalblue2", color = "black") +
+  labs(x = "Year", y = "# Policies Enacted", title = "Year Policy Was Enacted") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5)
+        )
+```
+
+```{r}
+
+
+
+```
