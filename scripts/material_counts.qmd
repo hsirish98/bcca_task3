@@ -32,7 +32,7 @@ Count the mentions of each material
 ```{r}
 
 ##make a list of the materials to capture 
-material_list <- c("steel", "aluminum", "insulation", "glass", "concrete", "cement", "asphalt", "wood", "timber")
+material_list <- c("rebar", "steel", "aluminum", "insulation", "glass", "concrete", "cement", "asphalt", "wood", "timber")
 
 
 ##initialize material column to 0 in policy_database
@@ -41,10 +41,11 @@ for (material in material_list) {
 }
 
 
-##use str_count to count everytime a policy mentions one of these materials
+
 for (material in material_list){
   policy_database[[material]] <- str_count(policy_database$covered_material_s, material)
 }
+
 
 ## label as 1 if the material is included and as 0 if it's not
 for(material in material_list){
@@ -53,7 +54,7 @@ for(material in material_list){
 
 # new database to investigate that functions worked correctly
 policy_database_materials <- policy_database %>%
-  select(2, 20, 46:ncol(policy_database)) 
+  select(2, 20, 45:ncol(policy_database)) 
 
 # sum the material counts to get total policies which mention them
 sums_df <- policy_database_materials %>%
@@ -62,6 +63,7 @@ sums_df <- policy_database_materials %>%
 ##Combine wood and timber
 data_combined <- sums_df %>%
   mutate(name = ifelse(name %in% c("wood", "timber"), "wood/timber", name)) %>%
+  mutate(name = ifelse(name %in% c("steel", "rebar"), "steel/rebar", name)) %>%
   group_by(name) %>%
   summarise(n_policies = sum(n_policies))
 
@@ -71,18 +73,35 @@ Graph this
 
 ```{r}
 
-# data_combined <- data_combined[order(-data_combined$n_policies), ]
-
-#custom_names <-  c("Concrete", "Wood/Timber", "Glass", "Insulation", "Cement", "Aspahlt", "Aluminum" )
+data_combined <- data_combined[order(-data_combined$n_policies), ]
   
-# Create the dumbbell plot
-ggplot(data_combined, aes(x = n_policies, y = reorder(name, n_policies))) +
-  geom_point(color = "darkblue", size=3) +  # Points before and after
-  geom_segment(aes(x = 0, xend = n_policies, yend = reorder(name, n_policies)), color = "darkblue") +  # Line segments connecting points
-  labs(title = "Materials Addressed by Policies", x = "Number of Policies Mentioning Material", y = "Material") +  # Add labels and titles
-  geom_text(aes(label = n_policies), vjust = -0.75, color = "darkblue", size = 4) +  # Add count labels
-  #scale_y_discrete(breaks = custom_names) +
+# Assume you have a vector of specific names for x-axis values
+specific_names <- c("Concrete", "Steel/Rebar", "Wood/Timber", "Glass", "Insulation", "Cement", "Asphalt", "Aluminum")
+
+# Create a new column in your dataset with the specific names
+data_combined$specific_names <- specific_names
+
+# Create the bar chart
+ggplot(data_combined, aes(x = reorder(specific_names, n_policies), y = n_policies)) +
+  geom_bar(stat = "identity", fill = "darkblue") +  # Bars
+  labs(title = "Most Common Materials Addressed in Embodied Carbon Policies", x = "", y = "Number of Policies Addressing Material") +  # Add labels and titles
+  geom_text(aes(label = n_policies),  
+            color = "white",
+            size = 8,
+            hjust = 1.88) +  # Add count labels
   theme_minimal() +
-  theme(plot.title = element_text(hjust = 0.5))
+  theme(plot.title = element_text(hjust = 0.5,
+                                  face = "bold",
+                                  family = "inter",
+                                  size = 25),
+        axis.title = element_text(face = "bold",
+                                  family="inter",
+                                  size = 15,
+                                  vjust = -2),
+        axis.text =  element_text(
+                                  family="inter",
+                                  size = 15)) +
+  coord_flip()
+
 
 ```
