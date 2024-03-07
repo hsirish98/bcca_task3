@@ -2,6 +2,8 @@
 title: "Spatial Map Data"
 format: html
 editor: visual
+editor_options: 
+  chunk_output_type: console
 ---
 
 ## Spatial Map Creation
@@ -14,6 +16,12 @@ library(tidyverse)
 library(sf)
 library(ggplot2)
 library(maps)
+library(showtext)
+
+font_add_google(name = "Poppins", family = "poppins")
+font_add_google(name= "Inter", family="inter")
+
+showtext_auto()
 ```
 
 Read in data
@@ -82,12 +90,12 @@ world_map <- map_data("world")
 world_map <- subset(world_map, region != "Antarctica")
 
 geom_world <- ggplot()+
-  geom_polygon(data = world_map, aes(x = long, y = lat, group = group), 
+  geom_polygon(data = world_map, aes(x = long, y = lat, group = group), size =0.1,
                fill = "grey90", color = "gray40") +
   coord_sf(crs = 4326)  # Set CRS to WGS 84 (EPSG:4326)
 
-
-
+ png("world_map.png", width =3300, height = 1600, res = 600)
+ 
 geom_with_points <- geom_world + 
   geom_sf(data = data_type_update, aes(color = type_spec), fill = "black", size = 2, shape = 18,  alpha=0.9) +
   scale_color_viridis_d(option = "inferno", end =0.8)+
@@ -95,11 +103,26 @@ geom_with_points <- geom_world +
   theme_void()+
   theme(legend.position = "bottom",# Move legend to the bottom
         legend.title = element_blank(),
-        plot.title = element_text(hjust = 0.5),
-        aspect.ratio = 0.5
+        legend.text = element_text(family="poppins", 
+                                   size=8,
+                                   hjust =0.35),
+         plot.title = element_text(face="bold",
+                              family = "poppins",
+                              size = 15,
+                              hjust = 0.5,
+                              vjust = 2),
+       # aspect.ratio = 0.45,
+        panel.background = element_rect(fill = "lightblue")
         )  
 
+
 geom_with_points
+
+# Save or print the plot
+print(geom_with_points)
+
+# close the device
+dev.off()
 ```
 
 ```{r}
@@ -109,10 +132,19 @@ data_year <- data_base[!is.na(data_base$date_enacted), ]
 
 ggplot(data = data_year, aes(x = factor(date_enacted))) +
   geom_histogram(stat = "count", fill = "royalblue2", color = "black") +
-  labs(x = "Year", y = "# Policies Enacted", title = "Year Policy Was Enacted") +
+  labs(x = "Year", y = "# Policies Enacted", title = "Number of Policies Enacted by Year") +
   theme_minimal() +
-  theme(plot.title = element_text(hjust = 0.5)
-        )
+  theme(plot.title = element_text(face = "bold",
+                                  family = "inter", 
+                                  hjust = 0.5,
+                                  size=20),
+        axis.title = element_text(face = "bold",
+                                  family = "poppins",
+                                  size=15),
+        axis.text = element_text(family = "poppins",
+                                 size=15),
+        aspect.ratio = 0.5)
+
 ```
 
 ```{r}
