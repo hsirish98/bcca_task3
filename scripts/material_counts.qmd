@@ -47,6 +47,9 @@ for (material in material_list){
 }
 
 
+rebar_df <- policy_database[grepl("concrete reinforcing steel", policy_database$covered_material_s, ignore.case = TRUE), ]
+
+
 ## label as 1 if the material is included and as 0 if it's not
 for(material in material_list){
   policy_database[[material]] <- ifelse(policy_database[[material]] >0 ,1,0)
@@ -54,18 +57,25 @@ for(material in material_list){
 
 # new database to investigate that functions worked correctly
 policy_database_materials <- policy_database %>%
-  select(2, 20, 45:ncol(policy_database)) 
+  select(2, 11, 20, 45:ncol(policy_database)) 
 
 # sum the material counts to get total policies which mention them
-sums_df <- policy_database_materials %>%
-  summarise_at(c(3:ncol(policy_database_materials)), sum, na.rm = TRUE) %>% pivot_longer(., cols=everything(), values_to="n_policies") 
+sums_df_nontidy <- policy_database_materials %>%
+  summarise_at(c(4:ncol(policy_database_materials)), sum, na.rm = TRUE) %>% pivot_longer(., cols=everything(), values_to="n_policies") 
+
+sums_df_tidy <- sums_df_nontidy %>% 
+  mutate(subtract = ifelse(name=="concrete", 3, 0)) %>% 
+  mutate(n_final = n_policies-subtract)
+
+sums_df <- sums_df_tidy %>% 
+  select(1, 4)
 
 ##Combine wood and timber
 data_combined <- sums_df %>%
   mutate(name = ifelse(name %in% c("wood", "timber"), "wood/timber", name)) %>%
   mutate(name = ifelse(name %in% c("steel", "rebar"), "steel/rebar", name)) %>%
   group_by(name) %>%
-  summarise(n_policies = sum(n_policies))
+  summarise(n_final = sum(n_final))
 
 ```
 
@@ -73,7 +83,7 @@ Graph this
 
 ```{r}
 
-data_combined <- data_combined[order(-data_combined$n_policies), ]
+data_combined <- data_combined[order(-data_combined$n_final), ]
   
 # Assume you have a vector of specific names for x-axis values
 specific_names <- c("Concrete", "Steel/Rebar", "Wood/Timber", "Glass", "Insulation", "Cement", "Asphalt", "Aluminum")
@@ -82,26 +92,41 @@ specific_names <- c("Concrete", "Steel/Rebar", "Wood/Timber", "Glass", "Insulati
 data_combined$specific_names <- specific_names
 
 # Create the bar chart
-ggplot(data_combined, aes(x = reorder(specific_names, n_policies), y = n_policies)) +
+material_barplot <- ggplot(data_combined, aes(x = reorder(specific_names, n_final), y = n_final)) +
   geom_bar(stat = "identity", fill = "darkblue") +  # Bars
   labs(title = "Most Common Materials Addressed in Embodied Carbon Policies", x = "", y = "Number of Policies Addressing Material") +  # Add labels and titles
-  geom_text(aes(label = n_policies),  
+  geom_text(aes(label = n_final),  
             color = "white",
-            size = 8,
+            size = 15,
             hjust = 1.88) +  # Add count labels
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5,
                                   face = "bold",
                                   family = "inter",
-                                  size = 25),
+                                  size =30),
         axis.title = element_text(face = "bold",
                                   family="inter",
-                                  size = 15,
+                                  size = 25,
                                   vjust = -2),
         axis.text =  element_text(
                                   family="inter",
-                                  size = 15)) +
+                                  size = 20)) +
   coord_flip()
 
+material_barplot
 
+ggsave(here::here("images/bar_plot.png"), plot = material_barplot, width = 7, height = 4, dpi = 320)
+```
+
+Buy clean materials
+
+```{r}
+
+
+buy_clean <- policy_database_materials %>% 
+  filter(specific_lever == "Procurement Policy") %>% 
+  drop_na(covered_material_s)
+
+buy_clean_sums <- buy_clean %>%
+  summarise_at(c(4:ncol(policy_database_materials)), sum, na.rm = TRUE) %>% pivot_longer(., cols=everything(), values_to="n_final") 
 ```
