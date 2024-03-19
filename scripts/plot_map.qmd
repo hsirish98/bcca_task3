@@ -18,9 +18,13 @@ library(ggplot2)
 library(maps)
 library(showtext)
 
+##redacted offline
+##add google fonts
 font_add_google(name = "Poppins", family = "poppins")
 font_add_google(name= "Inter", family="inter")
 
+##redacted offline
+##utilize google fonts
 showtext_auto()
 ```
 
@@ -28,7 +32,7 @@ Read in data
 
 ```{r}
 
-data_base <- read_csv(here::here("data/Working_Policy_Database_spatial.csv")) %>% 
+data_base <- read_csv(here::here("data/Working_Policy_Database_w_countries.csv")) %>% 
   janitor::clean_names() 
   
   
@@ -39,7 +43,9 @@ lat_lon_df <- data_base %>%
          legal_status, 
          lever, 
          specific_lever, 
-         location) 
+         location,
+         country,
+         jurisdiction) 
 
 lat_lon_df <- lat_lon_df[!is.na(lat_lon_df$lon), ]
 lat_lon_df <- lat_lon_df[!is.na(lat_lon_df$lat), ]
@@ -179,6 +185,43 @@ pie_chart <- ggplot(policy_type_counts_df, aes(x = "", y = Percentage, fill = Po
 
 
 pie_chart
+```
+
+## Stacked bar graph by country and type of policy
+
+```{r}
+
+jurisdiction_factor <- c("City", "County", "U.S. State", "National")
+
+type_jurisdiction <- data_type_update %>% 
+  filter(jurisdiction != "Association/Group") %>% 
+  mutate(jurisdiction=factor(jurisdiction, levels=jurisdiction_factor))
+
+stacked_country_type <- ggplot() +
+  geom_bar(data=type_jurisdiction, aes(x=type_spec, fill=jurisdiction))+
+  labs(x="Policy Type", y="Number of Policies", fill="Jurisdiction Level", title="Policy Count by Type and Jurisdiction Level")+
+  scale_y_continuous(breaks=seq(0, 30, by=5))+
+  scale_fill_manual(values=c("#b3cde0", "#6497b1", "#005b96", "#03396c"))+
+  theme_minimal()+
+  theme(axis.title = element_text(face="bold",
+                                  family="inter", 
+                                   size=18),
+        plot.title=element_text(face="bold",
+                                family="inter", 
+                                   size=20),
+        legend.title=element_text(face="bold",
+                                  family="inter",
+                                  size=15),
+        axis.text = element_text(family="poppins",
+                                 size=15),
+        legend.text = element_text(family="poppins",
+                                 size=15))+
+  
+  coord_flip()
+  
+
+stacked_country_type
+
 ```
 
 ## Summing by Legal Status

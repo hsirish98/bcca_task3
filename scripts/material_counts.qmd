@@ -57,7 +57,7 @@ for(material in material_list){
 
 # new database to investigate that functions worked correctly
 policy_database_materials <- policy_database %>%
-  select(2, 11, 20, 45:ncol(policy_database)) 
+  select(2, 11, 22, 47:ncol(policy_database)) 
 
 # sum the material counts to get total policies which mention them
 sums_df_nontidy <- policy_database_materials %>%
@@ -97,20 +97,20 @@ material_barplot <- ggplot(data_combined, aes(x = reorder(specific_names, n_fina
   labs(title = "Most Common Materials Addressed in Embodied Carbon Policies", x = "", y = "Number of Policies Addressing Material") +  # Add labels and titles
   geom_text(aes(label = n_final),  
             color = "white",
-            size = 15,
+            size = 8,
             hjust = 1.88) +  # Add count labels
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5,
                                   face = "bold",
                                   family = "inter",
-                                  size =30),
+                                  size =12),
         axis.title = element_text(face = "bold",
                                   family="inter",
-                                  size = 25,
+                                  size = 10,
                                   vjust = -2),
         axis.text =  element_text(
                                   family="inter",
-                                  size = 20)) +
+                                  size = 10)) +
   coord_flip()
 
 material_barplot
@@ -123,10 +123,65 @@ Buy clean materials
 ```{r}
 
 
+
 buy_clean <- policy_database_materials %>% 
   filter(specific_lever == "Procurement Policy") %>% 
   drop_na(covered_material_s)
 
+
 buy_clean_sums <- buy_clean %>%
-  summarise_at(c(4:ncol(policy_database_materials)), sum, na.rm = TRUE) %>% pivot_longer(., cols=everything(), values_to="n_final") 
+  summarise_at(c(4:ncol(policy_database_materials)), sum, na.rm = TRUE) %>% pivot_longer(., cols=everything(), values_to="n_policies")
+
+##only 2 have concrete reinforcing steel in buy clean
+buy_clean_sums_tidy <- buy_clean_sums %>% 
+  mutate(subtract = ifelse(name=="concrete", 2, 0)) %>% 
+  mutate(n_final = n_policies-subtract)
+
+buy_clean_df <- buy_clean_sums_tidy %>% 
+  select(1, 4)
+
+
+##Combine wood and timber
+buy_clean_combined <- buy_clean_df %>%
+  mutate(name = ifelse(name %in% c("wood", "timber"), "wood/timber", name)) %>%
+  mutate(name = ifelse(name %in% c("steel", "rebar"), "steel/rebar", name)) %>%
+  group_by(name) %>%
+  summarise(n_final = sum(n_final))
+
+buy_clean_combined <- buy_clean_combined[order(-buy_clean_combined$n_final), ]
+
+
+specific_names <- c("Concrete", "Steel/Rebar", "Wood/Timber", "Glass", "Insulation", "Cement", "Asphalt", "Aluminum")
+
+# Create a new column in your dataset with the specific names
+buy_clean_combined$specific_names <- specific_names
+
+# Create the bar chart
+buyclean_barplot <- ggplot(buy_clean_combined, aes(x = reorder(specific_names, n_final), y = n_final)) +
+  geom_bar(stat = "identity", fill = "purple") +  # Bars
+  labs(title = "Most Common Materials Addressed in Buy Clean Policies", x = "", y = "Number of Buy Clean Policies Addressing Material") +  # Add labels and titles
+  geom_text(aes(label = n_final),  
+            color = "white",
+            size = 8,
+            hjust = 1.88) +  # Add count labels
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5,
+                                  face = "bold",
+                                  family = "inter",
+                                  size =12),
+        axis.title = element_text(face = "bold",
+                                  family="inter",
+                                  size = 10,
+                                  vjust = -2),
+        axis.text =  element_text(
+                                  family="inter",
+                                  size = 10)) +
+  coord_flip()
+
+
+buyclean_barplot
+
+
+
+ggsave(here::here("images/bc_plot.png"), plot = buyclean_barplot, width = 7, height = 4, dpi = 320)
 ```
