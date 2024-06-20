@@ -1,32 +1,10 @@
 ---
-title: "Spatial Map Data"
+title: "Category by Country"
 format: html
 editor: visual
-editor_options: 
-  chunk_output_type: console
 ---
 
 ```{r}
-
-
-library(tidyverse)
-library(sf)
-library(ggplot2)
-library(maps)
-library(showtext)
-
-#redacted offline
-#add google fonts
-font_add_google(name = "Poppins", family = "poppins")
-font_add_google(name= "Inter", family="inter")
-
-##redacted offline
-##utilize google fonts
-showtext_auto()
-```
-
-```{r}
-
 
 ##read in database
 data_base <- read_csv(here::here("data/Working_Policy_Database.csv")) %>% 
@@ -34,7 +12,7 @@ data_base <- read_csv(here::here("data/Working_Policy_Database.csv")) %>%
   
  ##select main descriptive policies 
 ##please note field names and update if necessary
-jurisdiction_df <- data_base %>% 
+cat_nation_df <- data_base %>% 
   select(title_of_policy, ##title of policy
          lat, ##latitude,
          lon, ##longitude
@@ -47,14 +25,17 @@ jurisdiction_df <- data_base %>%
          participation, ##mandatory vs. voluntary
          location, ##specific location 
          country, ##country where policy is implemented
-         jurisdiction) ##places the policy covers 
+         jurisdiction)
 
 ##remove nas
-jurisdiction_df_clean <- jurisdiction_df[!is.na(jurisdiction_df$jurisdiction), ]
+cat_nation_df_clean <- cat_nation_df[!is.na(cat_nation_df$country), ]
 
 
 policy_category_pallette <- c("Climate Commitment" = "#29af7FFF",
                           "Clean Procurement" = "#33638DFF", "Building Codes/Planning" = "#482677ff", "Training & Education" = "#fde725")
+```
+
+```{r}
 
 
 ```
@@ -63,37 +44,30 @@ policy_category_pallette <- c("Climate Commitment" = "#29af7FFF",
 
 
 
-jurisdiction_factor <- c("City", "U.S. County", "State", "National", "International")
-
-type_jurisdiction <- jurisdiction_df_clean %>% 
-  filter(jurisdiction != "Association/Group") %>% 
-  mutate(jurisdiction=factor(jurisdiction, levels=jurisdiction_factor))
-
-
-type_primary <- type_jurisdiction %>% 
-  group_by(jurisdiction, primary_policy_category_broad) %>% 
+country_primary <- cat_nation_df_clean %>% 
+  group_by(country, primary_policy_category_broad) %>% 
   summarize(count = n()) %>% 
   rename("category" = primary_policy_category_broad)
 
-type_secondary <- type_jurisdiction %>% 
-  select(jurisdiction, secondary_category_if_necessary) %>% 
+country_secondary <- cat_nation_df_clean %>% 
+  select(country, secondary_category_if_necessary) %>% 
   drop_na() %>% 
-  group_by(jurisdiction, secondary_category_if_necessary) %>%
+  group_by(country, secondary_category_if_necessary) %>%
   summarize(count = n()) %>% 
   rename("category" = secondary_category_if_necessary)
 
-type_combined <- rbind(type_primary, type_secondary)
+country_cat_combined <- rbind(country_primary, country_secondary)
 
-jurisdiction_cat_graph_ready <- type_combined %>% 
-    group_by(jurisdiction, category) %>% 
+country_cat_combined_graph_ready <- country_cat_combined %>% 
+    group_by(country, category) %>% 
   summarise(total = sum(count))
 
 
-stacked_type_jur <- ggplot(data=jurisdiction_cat_graph_ready, aes(x=category, y=total, fill=jurisdiction)) +
+stacked_cat_country <- ggplot(data=country_cat_combined_graph_ready, aes(x=country, y=total, fill=category)) +
   geom_bar(stat="identity")+
-  labs(x="Policy Type", y="Number of Policies", fill="Jurisdiction Level", title="Policy Count by Category and Jurisdiction Level")+
-  scale_y_continuous(breaks=seq(0, 30, by=1))+
-  scale_fill_manual(values=c("#b3cde0", "#6497b1", "#005b96", "#03396c", "navy"))+
+  labs(x="Country", y="Number of Policies", fill="Policy Category", title="Policy Count by Country and Category")+
+  scale_y_continuous(breaks=seq(0, 40, by=1))+
+  scale_fill_manual(values=policy_category_pallette)+
   theme_minimal()+
   theme(axis.title = element_text(face="bold",
                                   family="inter", 
@@ -113,7 +87,8 @@ stacked_type_jur <- ggplot(data=jurisdiction_cat_graph_ready, aes(x=category, y=
   coord_flip()
   
 
-stacked_type_jur
+stacked_cat_country
 
-ggsave(here::here("images/jurisdiction.png"), plot = stacked_type_jur, width = 10, height = 4, dpi = 320)
+
+ggsave(here::here("images/stacked_cat_country.png"), plot = stacked_cat_country, width = 10, height = 4, dpi = 320)
 ```

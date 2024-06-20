@@ -1,0 +1,78 @@
+---
+title: "Year Histogram"
+format: html
+editor: visual
+---
+
+```{r}
+
+
+##read in database
+data_base <- read_csv(here::here("data/Working_Policy_Database.csv")) %>% 
+  janitor::clean_names() 
+  
+ ##select main descriptive policies 
+##please note field names and update if necessary
+data_clean <- data_base %>% 
+  select(title_of_policy, ##title of policy
+         lat, ##latitude,
+         lon, ##longitude
+         legal_status, ##denoting statutory vs. non
+         primary_policy_category_broad, ##main category of policy (clean procurement, building codes/planning)
+         secondary_category_if_necessary, ##second category of policy
+         primary_subcategory, ##main subcategory (buy clean, building code,etc.)
+         secondary_subcategory_if_necessary, ##second subcategory
+         methodology, ##method of achieving carbon reduction
+         participation, ##mandatory vs. voluntary
+         location, ##specific location 
+         country, ##country where policy is implemented
+         jurisdiction,
+         date_enacted,
+         date_in_effect,
+         status) ##places the policy covers 
+
+
+
+```
+
+```{r}
+
+
+data_year <- data_clean[!is.na(data_base$date_enacted), ]
+
+
+data_year <- data_year %>% 
+  filter(status != c("Planned", "Proposed")) 
+
+class(data_year$date_enacted)
+
+histogram_dates <- ggplot(data = data_year, aes(x = date_enacted)) +
+  geom_histogram(stat = "count", fill = "royalblue2", color = "black") +
+  labs(x = "Year", y = "# Policies Enacted", title = "Number of Policies Enacted by Year") +
+  scale_x_continuous(breaks = seq(2010, 2026, by = 1)) +
+  theme_minimal() +
+  theme(plot.title = element_text(face = "bold",
+                                  family = "inter", 
+                                  hjust = 0.5,
+                                  size=40),
+        axis.title = element_text(face = "bold",
+                                  family = "poppins",
+                                  size=35),
+        axis.text = element_text(family = "poppins",
+                                 size=35),
+        aspect.ratio = 0.5)
+
+ggsave(here::here("images/dates.png"), plot = histogram_dates, width = 7.5, height = 4, dpi = 320)
+
+
+
+```
+
+Calculate time to go in effect
+
+```{r}
+
+data_year_diff <- data_year %>% 
+  mutate(time_diff = date_in_effect - date_enacted) %>% 
+  select()
+```
