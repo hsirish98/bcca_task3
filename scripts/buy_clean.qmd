@@ -1,0 +1,128 @@
+---
+title: "Buy Cleans"
+format: html
+editor: visual
+---
+
+## Buy Clean Policies
+
+```{r}
+
+library(tidyverse)
+library(sf)
+library(ggplot2)
+library(maps)
+library(showtext)
+
+##redacted offline
+##add google fonts
+font_add_google(name = "Poppins", family = "poppins")
+font_add_google(name= "Inter", family="inter")
+
+##redacted offline
+##utilize google fonts
+showtext_auto()
+
+
+data_base <- read_csv(here::here("data/Working_Policy_Database.csv")) %>% 
+  janitor::clean_names() 
+  
+
+data_base_df <- data_base[!is.na(data_base$date_entered), ]
+```
+
+```{r}
+
+
+buy_cleans <- data_base_df %>% 
+  filter(specific_lever == "Procurement Policy")
+
+
+```
+
+## Cadence
+
+```{r}
+
+cadence_df <- data.frame(buy_clean = c("California", "New York", "Massachussetts", "Colorado", "Maryland"), 
+                         start_year = c(2022,2025,2025,2027,2026), cadence=c(3,2,5,4,3)) %>% 
+  mutate(next_year = start_year+cadence)
+
+```
+
+```{r}
+
+year_range <- range(c(cadence_df$start_year, cadence_df$next_year))
+all_years <- seq(from = year_range[1], to = year_range[2], by = 1)
+
+ggplot(cadence_df, aes(x = reorder(buy_clean, start_year), y = start_year)) +
+  geom_segment(aes(xend = buy_clean, yend = next_year), color = "grey") +
+  geom_point(aes(y = start_year, color = "Start Year"), size = 3) +
+  geom_point(aes(y = next_year, color = "First Year Lowered"), size = 3) +
+  geom_text(aes(label = paste(cadence, "Year Cadence"), y = (start_year + next_year) / 2), vjust = -0.5,
+            size=10) +
+  coord_flip() +
+  scale_color_manual(values = c("Start Year" = "blue", "First Year Lowered" = "gray")) + # Define custom colors
+  scale_y_continuous(breaks = all_years) +
+  labs(title = "Buy Clean Limit Reduction Cadences",
+       x = "Buy Clean State",
+       y = "Year") +
+  scale_y_continuous()+
+  theme_minimal() +
+  theme(
+  axis.text =  element_text(family="inter",
+                                  size = 15),
+  axis.title = element_text(family="inter",
+                                  size = 20,
+                            face="bold"),
+  plot.title = element_text(family="inter",
+                                  size = 35,
+                            face="bold"),
+  legend.title = element_blank(),
+  legend.text = element_text(family="inter",
+                                  size = 15)
+  
+  )
+```
+
+```{r}
+
+standard_sf <- data.frame(country = c("Canada", "Canada", "US", "Canada", "Canada", "US", "Denmark", "Singapore", "Sweden", "France", "Canada", "California"), strategy =c( "quant", "quant", "quant", "design","design", "quant", "limit", "design", "quant", "limit", "design","limit")  )
+```
+
+```{r}
+
+
+# Calculate total number of policies
+total_policies <- nrow(standard_sf)
+
+# Calculate counts of each strategy
+strategy_counts <- table(standard_sf$strategy)
+
+# Calculate percentages of each strategy relative to total policies
+strategy_percentages <- paste(round((strategy_counts / total_policies) * 100,0), "%")
+
+
+custom_labels <- c("Green Design", "Whole-Building Limits", "Embodied Carbon Quantification/Reporting")
+
+# Plot using ggplot
+ggplot(NULL, aes(x = custom_labels, y = strategy_counts, fill = custom_labels)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = strategy_percentages), vjust = 2, size = 10, family="inter") +
+  labs(title = "Building Standard Strategies",
+       x = "Strategy",
+       y = "Count") +
+
+  theme_minimal() +
+  theme(
+        legend.position="none",
+         axis.text =  element_text(family="inter",
+                                  size = 15),
+  axis.title = element_text(family="inter",
+                                  size = 20,
+                            face="bold"),
+        plot.title=element_text(family="inter",
+                                  size = 30,
+                                hjust=0.5)
+  )
+```

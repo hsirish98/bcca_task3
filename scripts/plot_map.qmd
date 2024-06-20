@@ -1,12 +1,15 @@
 ---
 title: "Spatial Map Data"
 format: html
+author: Hannah Irish
 editor: visual
 editor_options: 
-  chunk_output_type: inline
+  chunk_output_type: console
 ---
 
-## Spatial Map Creation
+## This script is updated as of June 2024
+
+## Policy Map by Category
 
 Load packages
 
@@ -18,8 +21,8 @@ library(ggplot2)
 library(maps)
 library(showtext)
 
-##redacted offline
-##add google fonts
+#redacted offline
+#add google fonts
 font_add_google(name = "Poppins", family = "poppins")
 font_add_google(name= "Inter", family="inter")
 
@@ -28,107 +31,111 @@ font_add_google(name= "Inter", family="inter")
 showtext_auto()
 ```
 
-Read in data
+Read in data -- names of fields may need to be updated if versions of the database have changed since update date at the top of this script
 
 ```{r}
 
-data_base <- read_csv(here::here("data/Working_Policy_Database_w_countries.csv")) %>% 
+##read in database
+data_base <- read_csv(here::here("data/Working_Policy_Database.csv")) %>% 
   janitor::clean_names() 
   
-  
+ ##select main descriptive policies 
+##please note field names and update if necessary
 lat_lon_df <- data_base %>% 
-  select(title_of_policy, 
-         lat, lon, 
-         policy_type, 
-         legal_status, 
-         lever, 
-         specific_lever, 
-         location,
-         country,
-         jurisdiction) 
+  select(title_of_policy, ##title of policy
+         lat, ##latitude,
+         lon, ##longitude
+         legal_status, ##denoting statutory vs. non
+         primary_policy_category_broad, ##main category of policy (clean procurement, building codes/planning)
+         secondary_category_if_necessary, ##second category of policy
+         primary_subcategory, ##main subcategory (buy clean, building code,etc.)
+         secondary_subcategory_if_necessary, ##second subcategory
+         methodology, ##method of achieving carbon reduction
+         participation, ##mandatory vs. voluntary
+         location, ##specific location 
+         country, ##country where policy is implemented
+         jurisdiction) ##places the policy covers 
 
+##remove nas
 lat_lon_df <- lat_lon_df[!is.na(lat_lon_df$lon), ]
 lat_lon_df <- lat_lon_df[!is.na(lat_lon_df$lat), ]
 
 
-
+##convert to simple features object
 data_sf <- st_as_sf(lat_lon_df, coords = c("lon", "lat"), crs = 4326)
 
 
 
 ```
 
-Policy Types Wrangling
+Policy Category Wrangling + Color Palette
 
 ```{r}
 
-unique_types <- unique(data_sf$policy_type)
+##make object "unique_types" which contains the distince policy categories
+unique_types <- unique(data_sf$primary_policy_category_broad)
 
+##look at the types so you can make the palette
 unique_types
 
-data_type_remove_na <- data_sf[!is.na(data_sf$policy_type), ]
+##make sure to remove any extra rows that might have an na in the category section
+data_category_remove_na <- data_sf[!is.na(data_sf$primary_policy_category_broad), ]
 
-data_type_update <- data_type_remove_na %>% 
-  mutate(type_spec = case_when(
-    policy_type == "Plan" ~ "Plan/Recommendation",
-    policy_type == "Recommendation" ~ "Plan/Recommendation",
-    policy_type == "Law" ~ "Law, Standard, etc.",
-    policy_type == "By-Law" ~ "Law, Standard, etc.",
-    policy_type == "Resolution" ~ "Law, Standard, etc.",
-    policy_type == "Standard" ~ "Law, Standard, etc.",
-    policy_type == "Decree" ~ "Law, Standard, etc.",
-    policy_type == "Executive Order" ~ "Executive Order",
-    policy_type == "Voluntary Program" ~ "Voluntary Program",
-  ))
+
+
+policy_category_pallette <- c("Climate Commitment" = "#29af7FFF",
+                          "Clean Procurement" = "#33638DFF", "Building Codes/Planning" = "#482677ff", "Training & Education" = "#fde725")
+
+
 
 
 ```
 
-## Map
+## Make Map
 
 ```{r}
 
-
-policy_type_pallette <- c("Voluntary Program" = "#Fde725ff",
-                          "Executive Order" = "#29af7FFF",
-                          "Plan/Recommendation" = "#33638DFF", "Law, Standard, etc." = "#482677ff")
-
-
-
+##load base map
 world_map <- map_data("world")
 
+##remove Antarctica so the view isn't skewed
 world_map <- subset(world_map, region != "Antarctica")
 
+## plot base map to then add specifics on top of
 geom_world <- ggplot()+
   geom_polygon(data = world_map, aes(x = long, y = lat, group = group), size =0.1,
                fill = "grey90", color = "gray40") +
   coord_sf(crs = 4326)  # Set CRS to WGS 84 (EPSG:4326)
 
- png("world_map.png", width =3300, height = 1600, res = 600)
- 
+##add the data to map to create map object with policies 
 geom_with_points <- geom_world + 
-  geom_sf(data = data_type_update, aes(color = type_spec), fill = "black", size = 3, shape = 18,  alpha=0.9) +
-  scale_color_manual(values =policy_type_pallette)+
-  labs(title = "Embodied Carbon Policies by Policy Type")+
-  theme_void()+
+  geom_sf(data = data_category_remove_na, 
+          aes(color = primary_policy_category_broad), ##plot color by category type
+          fill = "black", size = 3, shape = 18,  alpha=0.75) + ##make shapes of points 
+  scale_color_manual(values = policy_category_pallette) + ##set the category to have the palette colors
+  labs(title = "Map of Embodied Carbon Policies by  Category")+
+  theme_void()+ ##remove any unnecessary background
   theme(legend.position = "bottom",# Move legend to the bottom
-        legend.title = element_blank(),
-        legend.text = element_text(family="inter", 
-                                   size=20,
+        legend.title = element_blank(), 
+        legend.text = element_text(family="inter", ##set text size and font
+                                   size=25,
                                    hjust =0.35),
-         plot.title = element_text(face="bold",
+         plot.title = element_text(face="bold", ##set text size and font
                               family = "inter",
-                              size = 30,
+                              size = 40,
                               hjust = 0.5,
                               vjust = 2),
-        aspect.ratio = 0.45,
-        panel.background = element_rect(fill = "lightblue")
+        legend.key = element_blank(),
+        aspect.ratio = 0.5,
+        panel.background = element_rect(fill = "lightblue") ##set the background to light blue to look like ocean
         )  
 
 
 
 
 geom_with_points
+ggsave(here::here("images/new_map.png"), plot = geom_with_points, width = 7, height = 4, dpi = 320)
+
 
 # Save or print the plot
 print(geom_with_points)
@@ -137,71 +144,66 @@ dev.off()
 
 ```
 
-## Make pie chart
+```         
+```
 
 ```{r}
 
+jurisdiction_factor <- c("City", "County", "U.S. State", "National")
 
+type_jurisdiction <- lat_lon_df %>% 
+  filter(jurisdiction != "Association/Group") %>% 
+  mutate(jurisdiction=factor(jurisdiction, levels=jurisdiction_factor))
 
-# Count occurrences of each policy type
-policy_type_counts <- table(data_type_update$type_spec)
+city_breakdown <- data_type_update %>% 
+  filter(jurisdiction=="City") %>% 
+  group_by(type_spec) %>% 
+   summarise(count = n())
 
-# Convert to dataframe
-policy_type_counts_df <- as.data.frame(policy_type_counts)
+city_n <- sum(city_breakdown$count)
 
-names(policy_type_counts_df) <- c("Policy_Type", "Occurrences")
+##the numerator here is the number of plans in the city category
+city_pct =9/city_n
+  
+stacked_type_jur <- ggplot() +
+  geom_bar(data=type_jurisdiction, aes(x=type_spec, fill=jurisdiction))+
+  labs(x="Policy Type", y="Number of Policies", fill="Jurisdiction Level", title="Policy Count by Type and Jurisdiction Level")+
+  scale_y_continuous(breaks=seq(0, 30, by=5))+
+  scale_fill_manual(values=c("#b3cde0", "#6497b1", "#005b96", "#03396c"))+
+  theme_minimal()+
+  theme(axis.title = element_text(face="bold",
+                                  family="inter", 
+                                   size=35),
+        plot.title=element_text(face="bold",
+                                family="inter", 
+                                   size=40),
+        legend.title=element_text(face="bold",
+                                  family="inter",
+                                  size=30),
+        axis.text = element_text(family="poppins",
+                                 size=30),
+        legend.text = element_text(family="poppins",
+                                 size=30),
+        legend.position="bottom")+
+  
+  coord_flip()
+  
 
-total_occurrences <- sum(policy_type_counts_df$Occurrences)
+stacked_type_jur
 
-policy_type_counts_df$Percentage <- (policy_type_counts_df$Occurrences / total_occurrences) * 100
+ggsave(here::here("images/jurisdiction.png"), plot = stacked_type_jur, width = 7, height = 4, dpi = 320)
 
-# Create the pie chart
-pie_chart <- ggplot(policy_type_counts_df, aes(x = "", y = Percentage, fill = Policy_Type)) +
-  geom_bar(stat = "identity", width = 1) +
-  coord_polar("y", start = 0) +
-  scale_fill_manual(values = policy_type_pallette) +
-  labs(title = "Breakdown of All Policies by Policy Type",
-       fill = "Policy Type",
-       x = NULL,
-       y = NULL) +
-  theme(legend.position = "right") +  # Position the legend at the right
-  geom_text(aes(label = paste0(round(Percentage, 1), "%")), 
-            position = position_stack(vjust = 0.5),
-            color = "black",
-            family = "poppins",
-            size = 5) + # Add labels with percentages
-  theme_void() +
-  theme(plot.title = element_text(face = "bold",
-                                  family = "inter",
-                                  size = 25,
-                                  hjust = 0.5,
-                                  vjust = -3),
-        legend.title = element_text(face = "bold",
-                                  family = "inter",
-                                  size = 20),
-        legend.text = element_text(family = "inter",
-                                   size = 16)
-  )
-
-
-pie_chart
 ```
 
 ## Stacked bar graph by country and type of policy
 
 ```{r}
 
-jurisdiction_factor <- c("City", "County", "U.S. State", "National")
-
-type_jurisdiction <- data_type_update %>% 
-  filter(jurisdiction != "Association/Group") %>% 
-  mutate(jurisdiction=factor(jurisdiction, levels=jurisdiction_factor))
-
 stacked_country_type <- ggplot() +
-  geom_bar(data=type_jurisdiction, aes(x=type_spec, fill=jurisdiction))+
-  labs(x="Policy Type", y="Number of Policies", fill="Jurisdiction Level", title="Policy Count by Type and Jurisdiction Level")+
+  geom_bar(data=type_jurisdiction, aes(x=country, fill=type_spec))+
+  labs(x="Country", y="Number of Policies", fill="Policy Type", title="Policy Count by Country and Policy Type")+
   scale_y_continuous(breaks=seq(0, 30, by=5))+
-  scale_fill_manual(values=c("#b3cde0", "#6497b1", "#005b96", "#03396c"))+
+  scale_fill_manual(values = policy_type_pallette)+
   theme_minimal()+
   theme(axis.title = element_text(face="bold",
                                   family="inter", 
@@ -221,7 +223,6 @@ stacked_country_type <- ggplot() +
   
 
 stacked_country_type
-
 ```
 
 ## Summing by Legal Status
@@ -260,7 +261,7 @@ data_year <- data_base[!is.na(data_base$date_enacted), ]
 
 class(data_year$date_enacted)
 
-ggplot(data = data_year, aes(x = date_enacted)) +
+histogram_dates <- ggplot(data = data_year, aes(x = date_enacted)) +
   geom_histogram(stat = "count", fill = "royalblue2", color = "black") +
   labs(x = "Year", y = "# Policies Enacted", title = "Number of Policies Enacted by Year") +
   scale_x_continuous(breaks = seq(2010, 2023, by = 1)) +
@@ -268,13 +269,15 @@ ggplot(data = data_year, aes(x = date_enacted)) +
   theme(plot.title = element_text(face = "bold",
                                   family = "inter", 
                                   hjust = 0.5,
-                                  size=20),
+                                  size=40),
         axis.title = element_text(face = "bold",
                                   family = "poppins",
-                                  size=15),
+                                  size=35),
         axis.text = element_text(family = "poppins",
-                                 size=15),
+                                 size=35),
         aspect.ratio = 0.5)
+
+ggsave(here::here("images/dates.png"), plot = histogram_dates, width = 7, height = 4, dpi = 320)
 
 ```
 

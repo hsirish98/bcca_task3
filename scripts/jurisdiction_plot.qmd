@@ -1,0 +1,109 @@
+---
+title: "Spatial Map Data"
+format: html
+editor: visual
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+
+
+library(tidyverse)
+library(sf)
+library(ggplot2)
+library(maps)
+library(showtext)
+
+#redacted offline
+#add google fonts
+font_add_google(name = "Poppins", family = "poppins")
+font_add_google(name= "Inter", family="inter")
+
+##redacted offline
+##utilize google fonts
+showtext_auto()
+```
+
+```{r}
+
+
+##read in database
+data_base <- read_csv(here::here("data/Working_Policy_Database.csv")) %>% 
+  janitor::clean_names() 
+  
+ ##select main descriptive policies 
+##please note field names and update if necessary
+jurisdiction_df <- data_base %>% 
+  select(title_of_policy, ##title of policy
+         lat, ##latitude,
+         lon, ##longitude
+         legal_status, ##denoting statutory vs. non
+         primary_policy_category_broad, ##main category of policy (clean procurement, building codes/planning)
+         secondary_category_if_necessary, ##second category of policy
+         primary_subcategory, ##main subcategory (buy clean, building code,etc.)
+         secondary_subcategory_if_necessary, ##second subcategory
+         methodology, ##method of achieving carbon reduction
+         participation, ##mandatory vs. voluntary
+         location, ##specific location 
+         country, ##country where policy is implemented
+         jurisdiction) ##places the policy covers 
+
+##remove nas
+jurisdiction_df_clean <- jurisdiction_df[!is.na(jurisdiction_df$jurisdiction), ]
+
+
+policy_category_pallette <- c("Climate Commitment" = "#29af7FFF",
+                          "Clean Procurement" = "#33638DFF", "Building Codes/Planning" = "#482677ff", "Training & Education" = "#fde725")
+
+
+```
+
+```{r}
+
+
+
+jurisdiction_factor <- c("City", "County", "U.S. State", "National")
+
+type_jurisdiction <- jurisdiction_df_clean %>% 
+  filter(jurisdiction != "Association/Group") %>% 
+  mutate(jurisdiction=factor(jurisdiction, levels=jurisdiction_factor))
+
+city_breakdown <- jurisdiction_df_clean %>% 
+  filter(jurisdiction=="City") %>% 
+  group_by(primary_policy_category_broad) %>% 
+   summarise(count = n())
+
+city_n <- sum(city_breakdown$count)
+
+##the numerator here is the number of plans in the city category
+city_pct =9/city_n
+  
+stacked_type_jur <- ggplot() +
+  geom_bar(data=type_jurisdiction, aes(x=primary_policy_category_broad, fill=jurisdiction))+
+  labs(x="Policy Type", y="Number of Policies", fill="Jurisdiction Level", title="Policy Count by Category and Jurisdiction Level")+
+  scale_y_continuous(breaks=seq(0, 30, by=5))+
+  scale_fill_manual(values=c("#b3cde0", "#6497b1", "#005b96", "#03396c"))+
+  theme_minimal()+
+  theme(axis.title = element_text(face="bold",
+                                  family="inter", 
+                                   size=35),
+        plot.title=element_text(face="bold",
+                                family="inter", 
+                                   size=40),
+        legend.title=element_text(face="bold",
+                                  family="inter",
+                                  size=30),
+        axis.text = element_text(family="poppins",
+                                 size=30),
+        legend.text = element_text(family="poppins",
+                                 size=30),
+        legend.position="bottom")+
+  
+  coord_flip()
+  
+
+stacked_type_jur
+
+ggsave(here::here("images/jurisdiction.png"), plot = stacked_type_jur, width = 7, height = 4, dpi = 320)
+```

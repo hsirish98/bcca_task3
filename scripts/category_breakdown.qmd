@@ -1,0 +1,102 @@
+---
+title: "Category Sub-Category"
+format: html
+editor: visual
+---
+
+## Load Packages
+
+```{r}
+
+library(tidyverse)
+library(sf)
+library(ggplot2)
+library(maps)
+library(showtext)
+
+#redacted offline
+#add google fonts
+font_add_google(name = "Poppins", family = "poppins")
+font_add_google(name= "Inter", family="inter")
+
+##redacted offline
+##utilize google fonts
+showtext_auto()
+```
+
+```{r}
+
+
+##read in database
+data_base <- read_csv(here::here("data/Working_Policy_Database.csv")) %>% 
+  janitor::clean_names() 
+  
+ ##select main descriptive policies 
+##please note field names and update if necessary
+cat_breakdown_df <- data_base %>% 
+  select(title_of_policy, ##title of policy
+         lat, ##latitude,
+         lon, ##longitude
+         legal_status, ##denoting statutory vs. non
+         primary_policy_category_broad, ##main category of policy (clean procurement, building codes/planning)
+         secondary_category_if_necessary, ##second category of policy
+         primary_subcategory, ##main subcategory (buy clean, building code,etc.)
+         secondary_subcategory_if_necessary, ##second subcategory
+         methodology, ##method of achieving carbon reduction
+         participation, ##mandatory vs. voluntary
+         location, ##specific location 
+         country, ##country where policy is implemented
+         jurisdiction) ##places the policy covers 
+
+##remove nas
+cat_breakdown_df_clean <- cat_breakdown_df[!is.na(cat_breakdown_df$primary_policy_category_broad), ]
+
+policy_category_pallette <- c("Climate Commitment" = "#29af7FFF",
+                          "Clean Procurement" = "#33638DFF", "Building Codes/Planning" = "#482677ff", "Training & Education" = "#fde725")
+
+
+
+subcategory_pallette <- c("Resolution/Declaration of Intent" = "#097969","Climate Action Plan" = "#AFE1AF", "Building Code Requirements" = "#5D3FD3", "Building Design Incentives" = "#CF9FFF", "Zoning Incentives" = "#CBC3E3","Buy Clean" = "#0047AB", "Owner Procurement Guidelines" = "#33638DFF", "Public Sector Initiatives" = "#ADD8E6", "Research Funding" = "#fde725")
+
+
+```
+
+```{r}
+
+
+
+cat_breakdown_bar_df <- cat_breakdown_df_clean %>% 
+  group_by(primary_policy_category_broad, primary_subcategory) %>% 
+  summarise(count=n()) 
+
+
+
+## make a chart of the breakdown of the category by subcategory
+
+category_breakdown <- ggplot() +
+  geom_bar(data=cat_breakdown_bar_df, aes(x=primary_policy_category_broad, y=count, fill=primary_subcategory), stat="identity", position="dodge") +
+  scale_fill_manual(values = subcategory_pallette)+
+  labs(x = "Primary Policy Category Broad", y = "Value", fill = "Primary Subcategory") +
+  theme_minimal()+
+  theme(axis.title = element_text(face="bold",
+                                  family="inter", 
+                                   size=35),
+        plot.title=element_text(face="bold",
+                                family="inter", 
+                                   size=40),
+        legend.title=element_text(face="bold",
+                                  family="inter",
+                                  size=30),
+        axis.text = element_text(family="poppins",
+                                 size=30),
+        legend.text = element_text(family="poppins",
+                                 size=30),
+        legend.position="bottom") +
+  coord_flip()
+
+category_breakdown
+
+ggsave(here::here("images/breakdown_cat.png"), plot = category_breakdown, width = 7, height = 4, dpi = 320)
+
+
+```

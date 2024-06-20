@@ -57,15 +57,25 @@ for(material in material_list){
 
 # new database to investigate that functions worked correctly
 policy_database_materials <- policy_database %>%
-  select(2, 11, 22, 47:ncol(policy_database)) 
+  select(legal_status, title_of_policy, specific_lever, covered_material_s, 49:ncol(policy_database)) 
+
+
+policy_jurisdiction <- policy_database %>%
+  select(legal_status, 49:ncol(policy_database)) 
+
+buy_clean_tidy <-  policy_database %>% 
+  filter(specific_lever =="Procurement Policy") %>%
+  select(policy_type, 49:ncol(policy_database)) 
 
 # sum the material counts to get total policies which mention them
 sums_df_nontidy <- policy_database_materials %>%
-  summarise_at(c(4:ncol(policy_database_materials)), sum, na.rm = TRUE) %>% pivot_longer(., cols=everything(), values_to="n_policies") 
+  summarise_at(c(5:ncol(policy_database_materials)), sum, na.rm = TRUE) %>% pivot_longer(., cols=everything(), values_to="n_policies") 
 
 sums_df_tidy <- sums_df_nontidy %>% 
   mutate(subtract = ifelse(name=="concrete", 3, 0)) %>% 
   mutate(n_final = n_policies-subtract)
+
+
 
 sums_df <- sums_df_tidy %>% 
   select(1, 4)
@@ -77,6 +87,50 @@ data_combined <- sums_df %>%
   group_by(name) %>%
   summarise(n_final = sum(n_final))
 
+```
+
+```{r}
+
+
+policy_jurisdiction_long <- pivot_longer(policy_jurisdiction, cols = -legal_status, names_to = "Material", values_to = "Value")
+
+policy_jurisdiction_long <- policy_jurisdiction_long[!is.na(policy_jurisdiction_long$legal_status), ] %>% 
+ mutate(Material = ifelse(Material %in% c("steel", "rebar"), "steel/rebar", Material))
+
+specific_names_jur <- c("wood"="Wood", "timber"="Timber", "steel/rebar"="Steel/Rebar", "insulation"="Insulation", "glass"="Glass", "concrete"="Concrete", "cement" = "Cement","asphalt"="Asphalt", "aluminum"="Aluminum")
+
+sum_jur <- policy_jurisdiction_long %>%
+  drop_na() %>%  # Drop rows with NA values
+  group_by(Material, legal_status) %>%
+  summarize(Value = sum(Value, na.rm = TRUE))
+
+jur_materials_plot <- ggplot(sum_jur, aes(x = Material, y = Value, fill = legal_status)) +
+  geom_bar(stat = "identity") +
+  facet_wrap(~legal_status, ncol=1) +
+  scale_fill_manual(values=c("grey30", "grey20"))+
+  labs(x = "Material", y = "", fill = "Policy Addressed") +
+  scale_x_discrete(labels = specific_names_jur) +
+  theme_minimal() +
+  theme(legend.position = "none",
+         axis.text =  element_text(family="inter",
+                                  size = 25),
+  axis.title = element_text(family="inter",
+                                  size = 30,
+                            face="bold"),
+        plot.title=element_text(family="inter",
+                                  size = 40,
+                                hjust=0.5),
+                                strip.text = element_text(family="inter",
+                                  size = 35,
+                            face="bold")
+        )+
+  coord_flip()
+
+jur_materials_plot
+
+
+ggsave(here::here("images/sum_jur.png"), plot = jur_materials_plot, width = 7, height = 4, dpi = 320)
+ 
 ```
 
 Graph this
@@ -91,14 +145,20 @@ specific_names <- c("Concrete", "Steel/Rebar", "Wood/Timber", "Glass", "Insulati
 # Create a new column in your dataset with the specific names
 data_combined$specific_names <- specific_names
 
+data_combined$ghg_emissions <- c(1,2,3,4,5,6,7,8)
+
 # Create the bar chart
 material_barplot <- ggplot(data_combined, aes(x = reorder(specific_names, n_final), y = n_final)) +
-  geom_bar(stat = "identity", fill = "darkblue") +  # Bars
+  geom_bar(stat = "identity", fill="blue") +  # Bars
+  geom_segment( aes(x=specific_names, xend=specific_names, y=0, yend=ghg_emissions))+
+  geom_point(aes(y = ghg_emissions, color = "red"), size = 3) +
+  geom_text(aes(label = ghg_emissions))+
   labs(title = "Most Common Materials Addressed in Embodied Carbon Policies", x = "", y = "Number of Policies Addressing Material") +  # Add labels and titles
-  geom_text(aes(label = n_final),  
-            color = "white",
-            size = 8,
-            hjust = 1.88) +  # Add count labels
+  # geom_text(aes(label = ghg_emissions),  
+  #           color = "white",
+  #           size = 8,
+  #           hjust = 1.88) +  # Add count labels
+  scale_y_continuous()+
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5,
                                   face = "bold",
@@ -110,12 +170,99 @@ material_barplot <- ggplot(data_combined, aes(x = reorder(specific_names, n_fina
                                   vjust = -2),
         axis.text =  element_text(
                                   family="inter",
-                                  size = 10)) +
-  coord_flip()
+                                  size = 10),
+        legend.position = "none") 
 
 material_barplot
 
 ggsave(here::here("images/bar_plot.png"), plot = material_barplot, width = 7, height = 4, dpi = 320)
+```
+
+```{r}
+
+factor_order_bc <- c("concrete", "steel/rebar", "glass", "wood/timber","asphalt", "cement","insulation",  "aluminum")
+
+specific_names_bc <- c("concrete"="Concrete","steel/rebar"="Steel/Rebar","glass"="Glass", "wood/timber"="Wood/Timber",  "asphalt"="Asphalt", "cement" = "Cement","insulation"="Insulation",   "aluminum"="Aluminum")
+
+buy_clean_long <- pivot_longer(buy_clean_tidy, cols = -policy_type, names_to = "Material", values_to = "Value") %>% 
+   mutate(Material = ifelse(Material %in% c("wood", "timber"), "wood/timber", Material)) %>%
+  mutate(Material = ifelse(Material %in% c("steel", "rebar"), "steel/rebar", Material)) 
+
+buy_clean_type <- ggplot(buy_clean_long, aes(x = factor(Material,levels=factor_order_bc), y = Value, fill = policy_type)) +
+  geom_bar(stat = "identity") +
+  scale_y_continuous(breaks = c(1:15))+
+  ylim(0,13)+
+  labs(x="Material", y="Number of Buy Clean Policies", fill="Policy Type", title="Buy Clean Policy Materials by Policy Type")+
+  scale_x_discrete(labels=specific_names_bc)+
+  scale_fill_manual(values=c("#552586", "#804FB3", "#B589D6"))+
+  theme_minimal()+
+  theme(legend.position="bottom",
+        plot.title = element_text(hjust = 0.5,
+                                  face = "bold",
+                                  family = "inter",
+                                  size 40),
+        axis.title = element_text(face = "bold",
+                                  family="inter",
+                                  size = 30,
+                                  vjust = -2),
+        axis.text =  element_text(
+                                  family="inter",
+                                  size = 20))
+
+
+buy_clean_type
+
+
+
+
+```
+
+```{r}
+
+buy_clean_country <-  policy_database %>% 
+  filter(specific_lever =="Procurement Policy") %>%
+  select(country, 49:ncol(policy_database)) 
+
+
+
+buy_clean_count_long <- pivot_longer(buy_clean_country, cols = -country, names_to = "Material", values_to = "Value") %>% 
+   mutate(Material = ifelse(Material %in% c("wood", "timber"), "wood/timber", Material)) %>%
+  mutate(Material = ifelse(Material %in% c("steel", "rebar"), "steel/rebar", Material)) 
+
+
+buy_clean_count_plot <- ggplot(buy_clean_count_long, aes(x = factor(Material,levels=factor_order_bc), y = Value,fill=country)) +
+  geom_bar(stat = "identity") +
+
+  scale_y_continuous(breaks = c(1:15))+
+  ylim(0,13)+
+  labs(x="Material", y="Number of Buy Clean Policies which Specify Materials", fill="Country", title="Buy Clean Policy Materials by Country")+
+  scale_x_discrete(labels=specific_names_bc)+
+  scale_fill_manual(values=c("orange", "orange4"))+
+  theme_minimal()+
+  theme(legend.position="bottom",
+        plot.title = element_text(hjust = 0.5,
+                                  face = "bold",
+                                  family = "inter",
+                                  size 40),
+        axis.title = element_text(face = "bold",
+                                  family="inter",
+                                  size = 30,
+                                  vjust = -2),
+        axis.text =  element_text(
+                                  family="inter",
+                                  size = 20))
+
+
+buy_clean_count_plot
+
+```
+
+```{r}
+saved_plot <- cowplot::plot_grid(buy_clean_count_plot,buy_clean_type)
+
+saved_plot
+
+ggsave(here::here("images/combo_plot.png"), plot = saved_plot, width = 7, height = 4, dpi = 320)
 ```
 
 Buy clean materials
