@@ -72,7 +72,13 @@ Calculate time to go in effect
 
 ```{r}
 
-data_year_diff <- data_year %>% 
-  mutate(time_diff = date_in_effect - date_enacted) %>% 
-  select()
+data_year_ineff <- data_clean[!is.na(data_clean$date_in_effect), ]
+
+data_year_both_cleaned <- data_year_ineff[!is.na(data_year_ineff$date_enacted), ]
+
+data_year_diff <- data_year_both_cleaned %>% 
+  mutate(time_diff = date_in_effect - date_enacted) 
+
+average_yr <- mean(data_year_diff$time_diff)
+  
 ```
