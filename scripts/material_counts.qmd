@@ -46,7 +46,7 @@ material_list_unique <- unique(material_test)
 
 
 ##make a list of the materials to capture; this will be CONTAINING these words so if something needs to be distinct, make it so
-material_list <- c("aluminum", "asphalt", "brick", "cement", "concrete", "concrete reinforcing steel", "glass", "wood", "gypsum board", "mineral wood", "insulation", "iron", "rebar", "steel", "timber")
+material_list <- c("aluminum", "asphalt", "brick", "cement", "concrete", "concrete reinforcing steel", "glass", "wood",  "mineral wood", "insulation", "iron", "rebar", "steel", "timber")
 
 ##we will deal with things being the same later (aka rebar and concrete reinforcing steel)
 
@@ -135,7 +135,7 @@ sums_df_tidy <- sums_df_nontidy %>%
       name == "wood",timber_to_add,0)) %>% 
   mutate(subtract = ifelse(is.na(subtract), 0, subtract)) %>%
   mutate(n_final = n_policies-subtract+add) %>%
-  filter(!name %in% c("rebar", "concrete reinforcing steel", "cement"))
+  filter(!name %in% c("rebar", "concrete reinforcing steel", "cement", "timber", "mineral wood"))
 
 
 
@@ -145,94 +145,60 @@ sums_df_tidy <- sums_df_nontidy %>%
 
 ```{r}
 
-policy_jurisdiction <- policy_database_materials %>%
-  select(legal_status, other:ncol(policy_database_materials)) %>%
-  select(-other)
+legal_stat <- policy_database_materials %>%
+  select(legal_status, aluminum:ncol(policy_database_materials)) 
 
 
+##I checked that statutory has all the problematic ones from above so I'm going to use the same code otherwise repeat checking process by jurisdiction type sorry!
 
-jursidiction_df_nontidy <- policy_jurisdiction %>%
-  summarise_at(c(2:ncol(policy_jurisdiction)), sum, na.rm = TRUE) %>% pivot_longer(., cols=everything(), values_to="n_policies")
+nonstat_df <- legal_stat %>%
+  filter(legal_status == "Non-Statutory") %>% 
+  pivot_longer(
+    cols = -legal_status, # Select all columns except the first one
+    values_to = "material", # Name for the new 'value' column
+  ) %>% 
+   filter(!is.na(material)) %>% 
+  group_by(legal_status, name) %>% 
+  summarize(total = sum(material)) %>%
+filter(!name %in% c("rebar", "concrete reinforcing steel", "cement", "timber", "mineral wood"))
 
-## we now need to remove some duplicates which will require the use of human eyes and brain. 
-
-## we need to find the uses of "wood" which really actually only are wood
-
-wood_pol_jur <- policy_jurisdiction %>% 
-  filter(wood>0 & `mineral wood` >0) %>% 
-  select(`mineral wood`, wood, covered_material_s)
-##above is the amount that contain both "mineral wood" as well as "wood" -- read through them and save into the following the number that contain both but it's JUST because the word "wood" is included in "mineral wood"
-
-wood_to_remove_jur <- 4 ## I have saved 4 (all of them)
-
-
-##concrete reinforcing steel will count as "concrete" but it shouldn't!
-crs_concrete_jur <- policy_jurisdiction %>% 
-  filter(`concrete reinforcing steel` > 0 & concrete > 0) %>% 
-  select(`concrete reinforcing steel`, concrete, covered_material_s)
-
-
-crs_to_remove_jur <- 4 ## I have saved 4 (all of them) (this is unsurpising)
-
-##these above have all been the same 4 policies causing an issue (@ california)
-
-#rebar and steel will be the same so we're going to make sure there are no double counts
-
-rebar_steel_jur <- policy_jurisdiction %>% 
-  filter(rebar > 0 & steel > 0) %>% 
-  select(rebar, steel, covered_material_s)
-
-rebar_steel_to_remove_jur <- 3 ##3 contain both "rebar" AND "steel"
-
-
-concrete_cement_jur <- policy_jurisdiction %>% 
-  filter(concrete > 0 & cement > 0) %>% 
-  select(concrete, cement, covered_material_s)
-
-cement_to_remove_jur <- 4
-
-timber_to_add_jur <- sum(policy_jurisdiction$timber, na.rm = TRUE)
-
-jursidiction_df_tidy <- jursidiction_df_nontidy %>%
+statutory_df <- legal_stat %>%
+  filter(legal_status == "Statutory") %>% 
+  pivot_longer(
+    cols = -legal_status, # Select all columns except the first one
+    values_to = "material", # Name for the new 'value' column
+  ) %>% 
+   filter(!is.na(material)) %>% 
+  group_by(legal_status, name) %>% 
+  summarize(total = sum(material)) %>% 
   mutate(subtract = case_when(
-    name == "wood" ~ wood_to_remove_jur, ## removing "mineral wood board insulation" from "wood"
-    name == "concrete" ~ crs_to_remove_jur, ##removing concrete reinforcing steel from "concrete"
-    name == "rebar" ~ rebar_steel_to_remove_jur, ##removing rebar where it ALSO mentions steel separately,
-    name == "cement" ~ cement_to_remove_jur,
-  )) %>% 
-    mutate(add = ifelse(
-      name == "wood",timber_to_add,0)) %>% 
+    name == "wood" ~ wood_to_remove, ## removing "mineral wood board insulation" from "wood"
+    name == "concrete" ~ crs_to_remove, ##removing concrete reinforcing steel from "concrete"
+    name == "rebar"  ~ rebar_steel_to_remove, ##removing rebar where it ALSO mentions steel separately,
+    name == "cement"  ~ cement_to_remove)) %>% 
+  mutate(add = ifelse(
+      name == "wood" & legal_status == "Statutory",timber_to_add,0))%>% 
   mutate(subtract = ifelse(is.na(subtract), 0, subtract)) %>%
-  mutate(n_final = n_policies-subtract+add) %>%
-  filter(!name %in% c("rebar", "concrete reinforcing steel", "cement"))
+  mutate(n_final = total-subtract+add) %>%
+  filter(!name %in% c("rebar", "concrete reinforcing steel", "cement", "timber", "mineral wood")) %>% 
+  select(legal_status, name, total)
 
+legal_stat_comb <- rbind(nonstat_df, statutory_df)
 
-policy_jurisdiction_long <- pivot_longer(policy_jurisdiction, cols = -legal_status, names_to = "Material", values_to = "Value")
+specific_names_legal <- c("wood"="Wood",  "steel"="Steel/Rebar", "insulation"="Insulation", "glass"="Glass", "concrete"="Concrete","asphalt"="Asphalt", "aluminum"="Aluminum", "brick" = "Brick", "iron" = "Iron")
 
-policy_jurisdiction_long <- policy_jurisdiction_long[!is.na(policy_jurisdiction_long$legal_status), ] %>% 
- mutate(Material = ifelse(Material %in% c("steel", "rebar"), "steel/rebar", Material))
-
-
-
-specific_names_jur <- c("wood"="Wood", "timber"="Timber", "steel/rebar"="Steel/Rebar", "insulation"="Insulation", "glass"="Glass", "concrete"="Concrete", "cement" = "Cement","asphalt"="Asphalt", "aluminum"="Aluminum")
-
-sum_jur <- policy_jurisdiction_long %>%
-  drop_na() %>%  # Drop rows with NA values
-  group_by(Material, legal_status) %>%
-  summarize(Value = sum(Value, na.rm = TRUE))
-
-jur_materials_plot <- ggplot(sum_jur, aes(x = Material, y = Value, fill = legal_status)) +
+legal_mat_plot <- ggplot(legal_stat_comb, aes(x = name, y = total, fill = legal_status)) +
   geom_bar(stat = "identity") +
   facet_wrap(~legal_status, ncol=1) +
   scale_fill_manual(values=c("grey30", "grey20"))+
   labs(x = "Material", y = "", fill = "Policy Addressed") +
-  scale_x_discrete(labels = specific_names_jur) +
+  scale_x_discrete(labels = specific_names_legal) +
   theme_minimal() +
   theme(legend.position = "none",
          axis.text =  element_text(family="inter",
-                                  size = 25),
+                                  size = 15),
   axis.title = element_text(family="inter",
-                                  size = 30,
+                                  size = 20,
                             face="bold"),
         plot.title=element_text(family="inter",
                                   size = 40,
@@ -243,11 +209,11 @@ jur_materials_plot <- ggplot(sum_jur, aes(x = Material, y = Value, fill = legal_
         )+
   coord_flip()
 
-jur_materials_plot
+legal_mat_plot
 
 
-ggsave(here::here("images/sum_jur.png"), plot = jur_materials_plot, width = 7, height = 4, dpi = 320)
- 
+ggsave(here::here("images/legal_materials.png"), plot = legal_mat_plot, width = 7, height = 4, dpi = 320)
+#  
 ```
 
 ```{r}
