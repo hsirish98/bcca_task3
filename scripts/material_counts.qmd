@@ -63,8 +63,6 @@ for (material in material_list){
 }
 
 
-rebar_df <- policy_database[grepl("concrete reinforcing steel", policy_database$covered_material_s, ignore.case = TRUE), ]
-
 
 ## label as 1 if the material is included and as 0 if it's not
 for(material in material_list){
@@ -73,7 +71,7 @@ for(material in material_list){
 
 # new database to investigate that functions worked correctly
 policy_database_materials <- policy_database %>%
-  select(legal_status, title_of_policy, primary_policy_category_broad, secondary_category_if_necessary, primary_subcategory, secondary_subcategory_if_necessary, covered_material_s, other:ncol(policy_database)) %>% 
+  select(legal_status, title_of_policy, primary_policy_category_broad, secondary_category_if_necessary,jurisdiction, primary_subcategory, secondary_subcategory_if_necessary, covered_material_s, other:ncol(policy_database)) %>% 
   select(-other)
 
 # 
@@ -83,7 +81,7 @@ policy_database_materials <- policy_database %>%
 
 # sum the material counts to get total policies which mention them
 sums_df_nontidy <- policy_database_materials %>%
-  summarise_at(c(8:ncol(policy_database_materials)), sum, na.rm = TRUE) %>% pivot_longer(., cols=everything(), values_to="n_policies")
+  summarise_at(c(9:ncol(policy_database_materials)), sum, na.rm = TRUE) %>% pivot_longer(., cols=everything(), values_to="n_policies")
 
 ## we now need to remove some duplicates which will require the use of human eyes and brain. 
 
@@ -116,11 +114,6 @@ rebar_steel <- policy_database_materials %>%
 rebar_steel_to_remove <- 3 ##3 contain both "rebar" AND "steel"
 
 
-concrete_cement <- policy_database_materials %>% 
-  filter(concrete > 0 & cement > 0) %>% 
-  select(concrete, cement, covered_material_s)
-
-cement_to_remove <- 4
 
 timber_to_add <- sum(policy_database_materials$timber, na.rm = TRUE)
 
@@ -128,20 +121,46 @@ sums_df_tidy <- sums_df_nontidy %>%
   mutate(subtract = case_when(
     name == "wood" ~ wood_to_remove, ## removing "mineral wood board insulation" from "wood"
     name == "concrete" ~ crs_to_remove, ##removing concrete reinforcing steel from "concrete"
-    name == "rebar" ~ rebar_steel_to_remove, ##removing rebar where it ALSO mentions steel separately,
-    name == "cement" ~ cement_to_remove,
-  )) %>% 
+    name == "rebar" ~ rebar_steel_to_remove)) %>%  ##removing rebar where it ALSO mentions steel separately,
     mutate(add = ifelse(
       name == "wood",timber_to_add,0)) %>% 
   mutate(subtract = ifelse(is.na(subtract), 0, subtract)) %>%
   mutate(n_final = n_policies-subtract+add) %>%
-  filter(!name %in% c("rebar", "concrete reinforcing steel", "cement", "timber", "mineral wood"))
+  filter(!name %in% c("rebar", "concrete reinforcing steel", "cement", "timber", "mineral wood")) %>% 
+  mutate(name = factor(name, levels = name[order(-n_final)]))
 
+
+
+
+overall_mat_plot <- ggplot(sums_df_tidy, aes(x = name, y = n_final)) +
+  geom_bar(stat="identity") +
+  scale_y_continuous(breaks = seq(0, max(sums_df_tidy$n_final), by = 2)) +
+  labs(x= "Material", y="Count", title="Number of Policies Addressing Each Material")+
+  theme_minimal()  +
+  theme(plot.title = element_text(hjust = 0.5,
+                                  face = "bold",
+                                  family = "inter",
+                                  size =12),
+        axis.title = element_text(face = "bold",
+                                  family="inter",
+                                  size = 10,
+                                  vjust = -2),
+        axis.text =  element_text(
+                                  family="inter",
+                                  size = 10),
+        legend.position = "none") 
+
+overall_mat_plot
+  
+
+ggsave(here::here("images/all_policies_materials.png"), plot = overall_mat_plot, width = 7, height = 4, dpi = 320)
 
 
 
 
 ```
+
+## Statutory vs. Non-Statutory plot
 
 ```{r}
 
@@ -174,8 +193,7 @@ statutory_df <- legal_stat %>%
   mutate(subtract = case_when(
     name == "wood" ~ wood_to_remove, ## removing "mineral wood board insulation" from "wood"
     name == "concrete" ~ crs_to_remove, ##removing concrete reinforcing steel from "concrete"
-    name == "rebar"  ~ rebar_steel_to_remove, ##removing rebar where it ALSO mentions steel separately,
-    name == "cement"  ~ cement_to_remove)) %>% 
+    name == "rebar"  ~ rebar_steel_to_remove)) %>% 
   mutate(add = ifelse(
       name == "wood" & legal_status == "Statutory",timber_to_add,0))%>% 
   mutate(subtract = ifelse(is.na(subtract), 0, subtract)) %>%
@@ -196,15 +214,15 @@ legal_mat_plot <- ggplot(legal_stat_comb, aes(x = name, y = total, fill = legal_
   theme_minimal() +
   theme(legend.position = "none",
          axis.text =  element_text(family="inter",
-                                  size = 15),
+                                  size = 10),
   axis.title = element_text(family="inter",
-                                  size = 20,
+                                  size = 15,
                             face="bold"),
         plot.title=element_text(family="inter",
-                                  size = 40,
+                                  size = 30,
                                 hjust=0.5),
                                 strip.text = element_text(family="inter",
-                                  size = 35,
+                                  size = 25,
                             face="bold")
         )+
   coord_flip()
@@ -214,10 +232,6 @@ legal_mat_plot
 
 ggsave(here::here("images/legal_materials.png"), plot = legal_mat_plot, width = 7, height = 4, dpi = 320)
 #  
-```
-
-```{r}
-
 ```
 
 Graph this
@@ -265,39 +279,105 @@ material_barplot
 ggsave(here::here("images/bar_plot.png"), plot = material_barplot, width = 7, height = 4, dpi = 320)
 ```
 
+## Buy Clean Policies by Material
+
 ```{r}
 
-factor_order_bc <- c("concrete", "steel/rebar", "glass", "wood/timber","asphalt", "cement","insulation",  "aluminum")
 
-specific_names_bc <- c("concrete"="Concrete","steel/rebar"="Steel/Rebar","glass"="Glass", "wood/timber"="Wood/Timber",  "asphalt"="Asphalt", "cement" = "Cement","insulation"="Insulation",   "aluminum"="Aluminum")
+buy_clean_mat <- policy_database_materials %>%
+  select(title_of_policy, primary_subcategory, secondary_subcategory_if_necessary, covered_material_s, jurisdiction, aluminum:ncol(policy_database_materials)) %>% 
+   filter(primary_subcategory == "Buy Clean" | secondary_subcategory_if_necessary == "Buy Clean") 
 
-buy_clean_long <- pivot_longer(buy_clean_tidy, cols = -policy_type, names_to = "Material", values_to = "Value") %>% 
-   mutate(Material = ifelse(Material %in% c("wood", "timber"), "wood/timber", Material)) %>%
-  mutate(Material = ifelse(Material %in% c("steel", "rebar"), "steel/rebar", Material)) 
+concrete_check_bc <- buy_clean_mat %>% 
+  filter(concrete > 0 & `concrete reinforcing steel` >0)
 
-buy_clean_type <- ggplot(buy_clean_long, aes(x = factor(Material,levels=factor_order_bc), y = Value, fill = policy_type)) +
-  geom_bar(stat = "identity") +
-  scale_y_continuous(breaks = c(1:15))+
-  ylim(0,13)+
-  labs(x="Material", y="Number of Buy Clean Policies", fill="Policy Type", title="Buy Clean Policy Materials by Policy Type")+
-  scale_x_discrete(labels=specific_names_bc)+
-  scale_fill_manual(values=c("#552586", "#804FB3", "#B589D6"))+
-  theme_minimal()+
-  theme(legend.position="bottom",
-        plot.title = element_text(hjust = 0.5,
+##the two that are captured under concrete and concrete reinforcing steel are really just for concrete so I'm going to remove them
+
+mineral_wood_check_bc <- buy_clean_mat %>% 
+  filter(wood > 0 & `mineral wood` >0)
+
+##the SAME 2 that are captured under wood and mineral wood are really just for insulation so wood needs to be removed
+
+buy_clean_no_dups <- buy_clean_mat %>% 
+  mutate(subtract_concrete = ifelse(
+    concrete > 0 & `concrete reinforcing steel` >0, 1, 0), 
+    subtract_wood = ifelse(wood > 0 & `mineral wood` >0, 1, 0),
+    wood = wood-subtract_wood,
+    concrete = concrete-subtract_concrete
+  ) 
+  
+buy_clean_clean <- buy_clean_no_dups %>% 
+select(-subtract_concrete, -subtract_wood, -`mineral wood`,-`concrete reinforcing steel`, -timber,-rebar, -primary_subcategory, -secondary_subcategory_if_necessary, -covered_material_s,-cement)
+
+
+
+buy_clean_long <- buy_clean_clean %>%
+  pivot_longer(
+    cols = -c(title_of_policy,jurisdiction), # Select all columns except the first one
+    values_to = "material" # Name for the new 'value' column
+  ) %>%  filter(!is.na(material)) %>% 
+  group_by(name,) %>% 
+  summarize(total = sum(material)) %>% 
+  filter(total>0) %>% 
+  mutate(name = factor(name, levels = name[order(-total)]))
+
+specific_names_legal <- c("wood"="Wood",  "steel"="Steel/Rebar", "insulation"="Insulation", "glass"="Glass", "concrete"="Concrete","asphalt"="Asphalt", "aluminum"="Aluminum")
+
+bc_mat_plot <- ggplot(buy_clean_long, aes(x = name, y = total)) +
+  geom_bar(stat="identity") +
+  scale_y_continuous(breaks = seq(0, max(buy_clean_long$total), by = 1)) +
+  labs(x= "Material", y="Count", title="Number of Buy Clean Policies Addressing Each Material")+
+  theme_minimal()  +
+  theme(plot.title = element_text(hjust = 0.5,
                                   face = "bold",
                                   family = "inter",
-                                  size 40),
+                                  size =12),
         axis.title = element_text(face = "bold",
                                   family="inter",
-                                  size = 30,
+                                  size = 10,
                                   vjust = -2),
         axis.text =  element_text(
                                   family="inter",
-                                  size = 20))
+                                  size = 10),
+        legend.position = "none") 
+
+bc_mat_plot
 
 
-buy_clean_type
+ggsave(here::here("images/bc_mat_plot.png"), plot = bc_mat_plot, width = 7, height = 4, dpi = 320)
+# 
+# 
+# factor_order_bc <- c("concrete", "steel/rebar", "glass", "wood/timber","asphalt", "cement","insulation",  "aluminum")
+# 
+# specific_names_bc <- c("concrete"="Concrete","steel/rebar"="Steel/Rebar","glass"="Glass", "wood/timber"="Wood/Timber",  "asphalt"="Asphalt", "cement" = "Cement","insulation"="Insulation",   "aluminum"="Aluminum")
+# 
+# buy_clean_long <- pivot_longer(buy_clean_tidy, cols = -policy_type, names_to = "Material", values_to = "Value") %>% 
+#    mutate(Material = ifelse(Material %in% c("wood", "timber"), "wood/timber", Material)) %>%
+#   mutate(Material = ifelse(Material %in% c("steel", "rebar"), "steel/rebar", Material)) 
+# 
+# buy_clean_type <- ggplot(buy_clean_long, aes(x = factor(Material,levels=factor_order_bc), y = Value, fill = policy_type)) +
+#   geom_bar(stat = "identity") +
+#   scale_y_continuous(breaks = c(1:15))+
+#   ylim(0,13)+
+#   labs(x="Material", y="Number of Buy Clean Policies", fill="Policy Type", title="Buy Clean Policy Materials by Policy Type")+
+#   scale_x_discrete(labels=specific_names_bc)+
+#   scale_fill_manual(values=c("#552586", "#804FB3", "#B589D6"))+
+#   theme_minimal()+
+#   theme(legend.position="bottom",
+#         plot.title = element_text(hjust = 0.5,
+#                                   face = "bold",
+#                                   family = "inter",
+#                                   size 40),
+#         axis.title = element_text(face = "bold",
+#                                   family="inter",
+#                                   size = 30,
+#                                   vjust = -2),
+#         axis.text =  element_text(
+#                                   family="inter",
+#                                   size = 20))
+# 
+# 
+# buy_clean_type
 
 
 

@@ -35,7 +35,7 @@ data_base_df <- data_base[!is.na(data_base$date_entered), ]
 
 
 buy_cleans <- data_base_df %>% 
-  filter(specific_lever == "Procurement Policy")
+  filter(primary_subcategory == "Buy Clean")
 
 
 ```
@@ -87,29 +87,41 @@ ggplot(cadence_df, aes(x = reorder(buy_clean, start_year), y = start_year)) +
 
 ```{r}
 
-standard_sf <- data.frame(country = c("Canada", "Canada", "US", "Canada", "Canada", "US", "Denmark", "Singapore", "Sweden", "France", "Canada", "California"), strategy =c( "quant", "quant", "quant", "design","design", "quant", "limit", "design", "quant", "limit", "design","limit")  )
-```
 
-```{r}
+building_codes <- data_base_df %>% 
+  filter(primary_policy_category_broad == "Building Codes/Planning" | secondary_category_if_necessary == "Building Codes/Planning" )
 
 
-# Calculate total number of policies
-total_policies <- nrow(standard_sf)
+wb_lca <- building_codes %>% 
+  filter(second_methodology_if_necessary == "Whole-Building Carbon Reduction" | methodology == "Whole-Building Carbon Reduction")
 
-# Calculate counts of each strategy
-strategy_counts <- table(standard_sf$strategy)
+n_lca <- nrow(wb_lca)
 
-# Calculate percentages of each strategy relative to total policies
+report <- building_codes %>% 
+  filter(second_methodology_if_necessary == "Reporting/Analysis Requirement" | methodology == "Reporting/Analysis Requirement")
+
+n_report <- nrow(report)
+
+gbd <- building_codes %>% 
+  filter(second_methodology_if_necessary == "Green Building Design" | methodology == "Green Building Design")
+
+n_gbd <- nrow(gbd)
+
+total_policies <- n_lca + n_report + n_gbd
+
+strategy_counts <- c(n_gbd, n_report, n_lca)
+
+
+methodology <- data.frame(Methodology = c("Green Building Design", "Reporting/Analysis", "Whole-Building Carbon Reduction" ), Count =c(nrow(gbd), nrow(report), nrow(wb_lca)))
+
 strategy_percentages <- paste(round((strategy_counts / total_policies) * 100,0), "%")
 
-
-custom_labels <- c("Green Design", "Whole-Building Limits", "Embodied Carbon Quantification/Reporting")
-
 # Plot using ggplot
-ggplot(NULL, aes(x = custom_labels, y = strategy_counts, fill = custom_labels)) +
+ggplot(methodology, aes(x = Methodology, y = Count, fill = Methodology)) +
   geom_bar(stat = "identity") +
   geom_text(aes(label = strategy_percentages), vjust = 2, size = 10, family="inter") +
-  labs(title = "Building Standard Strategies",
+  scale_y_continuous(breaks = c(1:12))+
+  labs(title = "Building Code/Planning Strategies",
        x = "Strategy",
        y = "Count") +
 
