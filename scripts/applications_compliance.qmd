@@ -1,0 +1,180 @@
+---
+title: "Compliance Mechanisms & Applications"
+format: html
+editor: visual
+---
+
+```{r}
+library(tidyverse)
+library(sf)
+library(ggplot2)
+library(maps)
+library(showtext)
+
+#redacted offline
+#add google fonts
+font_add_google(name = "Poppins", family = "poppins")
+font_add_google(name= "Inter", family="inter")
+
+##redacted offline
+##utilize google fonts
+showtext_auto()
+```
+
+```{r}
+##read in database
+data_base <- read_csv(here::here("data/Working_Policy_Database_1.csv")) %>% 
+  janitor::clean_names() 
+  
+ ##select main descriptive policies 
+##please note field names and update if necessary
+applications_etc_df <- data_base %>% 
+  select(title_of_policy, ##title of policy
+         # lat, ##latitude,
+         # lon, ##longitude
+         covered_life_cycle_stages,
+         application_type,
+         covered_applications,
+         compliance_mechanism)
+```
+
+```{r}
+
+compliance <- applications_etc_df %>%
+  separate_rows(compliance_mechanism, sep = ",") %>% 
+  mutate(compliance_mechanism = trimws(compliance_mechanism))
+
+
+compliance_clean <- compliance[!is.na(compliance$title_of_policy), ]
+
+dup_val <- nrow(compliance_clean) - length(unique(compliance_clean$title_of_policy))
+
+na_count <- sum(is.na(compliance_clean$compliance_mechanism))
+
+compliance_epd <- compliance_clean %>% 
+  filter(compliance_mechanism == "Type III EPD")
+
+epd_count <- nrow(compliance_epd)
+
+compliance_other <- compliance_clean %>% 
+  filter(compliance_mechanism != "Type III EPD")
+
+other_count <- nrow(compliance_other) - dup_val
+
+categories_comp <- c("Type III EPD", "Other", "NA")
+
+counts <- c(epd_count, other_count, na_count)
+
+pie_chart_df <- data.frame(categories_comp, counts) %>% 
+  mutate(percent = counts / sum(counts) * 100) # Reference `counts` directly
+
+
+# Create the pie chart with bigger labels
+comp_pie <- ggplot(pie_chart_df, aes(x = "", y = percent, fill = categories_comp)) +
+  geom_bar(stat = "identity", width = 1, color = NA) + # Create bar segments
+  coord_polar(theta = "y") + # Convert to pie chart
+  geom_text(aes(label = paste0(round(percent, 1), "%")), 
+            position = position_stack(vjust = 0.5), size = 20) + # Adjust `size` for bigger labels
+  labs(title = "", fill = "Categories") +
+  theme_minimal() +
+  theme(
+    axis.title = element_blank(),
+    plot.title = element_text(face = "bold", family = "inter", size = 40, hjust = 0.5),
+    legend.title = element_blank(),
+    axis.text = element_blank(), # Remove axis text for a clean look
+    legend.text = element_text(family = "poppins", size = 30),
+    legend.position = "bottom"
+  )
+
+ggsave(here::here("images/comp_pie.png"), plot = comp_pie, width = 7, height = 4, dpi = 320)
+```
+
+```{r}
+life_cycles <- applications_etc_df %>%
+  separate_rows(covered_life_cycle_stages, sep = ",") %>% 
+  mutate(covered_life_cycle_stages = trimws(covered_life_cycle_stages))
+
+life_cycles_grouped <- life_cycles %>% 
+  group_by(covered_life_cycle_stages) %>%
+  summarise(count=n()) %>% 
+  drop_na()
+
+life_bar <- ggplot() +
+  geom_bar(data=life_cycles_grouped,fill="lightblue", aes(x=covered_life_cycle_stages, y=count), stat="identity", position="dodge") +
+  labs(x = "Life Cycle Stages", y = "Number of Policies", title= "Life Cycle Stages Covered by Policies") +
+  theme_minimal()+
+  theme(axis.title = element_text(face="bold",
+                                  family="inter",
+                                   size=35),
+        plot.title=element_text(face="bold",
+                                family="inter",
+                                   size=40),
+        legend.title=element_text(face="bold",
+                                  family="inter",
+                                  size=30),
+        axis.text = element_text(family="poppins",
+                                 size=30),
+        legend.text = element_text(family="poppins",
+                                 size=30),
+        legend.position="bottom") +
+  coord_flip()
+```
+
+```{r}
+
+
+# app_type <- applications_etc_df %>%
+#   separate_rows(covered_applications, sep = ",") %>% 
+#   mutate(covered_applications = trimws(covered_applications))
+# 
+# app_type_group <- app_type %>% 
+#   group_by(covered_applications) %>%
+#   summarise(count=n()) %>% 
+#   drop_na() 
+
+app_type <- applications_etc_df %>%
+  mutate(application_type = str_to_lower(application_type)) %>% # Convert to lowercase
+  mutate(
+    transport = as.numeric(str_detect(application_type, "transport")),
+    buildings = as.numeric(str_detect(application_type, "buildings")),
+    construction = as.numeric(str_detect(application_type, "construction"))
+  ) %>%
+  select(transport, buildings, construction) %>% 
+  drop_na() %>%
+  pivot_longer(cols = c(transport, buildings, construction),
+               names_to = "category",
+               values_to = "total") %>%
+  select(category, total) %>% 
+  filter(total == 1) %>% # Only include rows where total is 1
+  group_by(category) %>%
+  summarise(count = n(), .groups = "drop") 
+
+specific_names <- c("transport"="Transportation Projects",  "buildings"="Buildings", "construction"="All Construction Projects")
+
+app_type_plot <- ggplot() +
+  geom_bar(data=app_type, aes(x=category, y=count), fill="royalblue2", stat="identity", position="dodge") +
+  labs(x = "Type of Application", y = "Count", fill = "Primary Subcategory", title = "Application Types Covered by Policies") +
+
+  scale_x_discrete(labels = specific_names) +
+  theme_minimal()+
+  theme(axis.title = element_text(face="bold",
+                                  family="inter",
+                                   size=35,
+                                  hjust = 0.5),
+        plot.title=element_text(face="bold",
+                                family="inter",
+                                   size=40),
+        legend.title=element_text(face="bold",
+                                  family="inter",
+                                  size=30),
+        axis.text = element_text(family="poppins",
+                                 size=30),
+        legend.text = element_text(family="poppins",
+                                 size=30),
+        legend.position="bottom") 
+
+ggsave(here::here("images/app_types.png"), plot = app_type_plot, width = 7, height = 4, dpi = 320)
+#  
+```
+
+\

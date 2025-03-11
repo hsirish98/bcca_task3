@@ -24,7 +24,7 @@ font_add_google(name= "Inter", family="inter")
 showtext_auto()
 
 
-data_base <- read_csv(here::here("data/Working_Policy_Database.csv")) %>% 
+data_base <- read_csv(here::here("data/Working_Policy_Database_1.csv")) %>% 
   janitor::clean_names() 
   
 
@@ -35,17 +35,18 @@ data_base_df <- data_base[!is.na(data_base$date_entered), ]
 
 
 buy_cleans <- data_base_df %>% 
-  filter(primary_subcategory == "Buy Clean")
+  filter(grepl("Buy Clean", policy_subcategory))
+  # filter(primary_subcategory == "Buy Clean")
 
-
+# filter(grepl("apple", ColumnR))
 ```
 
 ## Cadence
 
 ```{r}
 
-cadence_df <- data.frame(buy_clean = c("California", "New York", "Massachussetts", "Colorado", "Maryland"), 
-                         start_year = c(2022,2025,2025,2027,2026), cadence=c(3,2,5,4,3)) %>% 
+cadence_df <- data.frame(buy_clean = c("California", "New York",  "Colorado", "Maryland"), 
+                         start_year = c(2022,2025,2027,2026), cadence=c(3,2,4,3)) %>% 
   mutate(next_year = start_year+cadence)
 
 ```
@@ -55,7 +56,7 @@ cadence_df <- data.frame(buy_clean = c("California", "New York", "Massachussetts
 year_range <- range(c(cadence_df$start_year, cadence_df$next_year))
 all_years <- seq(from = year_range[1], to = year_range[2], by = 1)
 
-ggplot(cadence_df, aes(x = reorder(buy_clean, start_year), y = start_year)) +
+cadence_plot <- ggplot(cadence_df, aes(x = reorder(buy_clean, start_year), y = start_year)) +
   geom_segment(aes(xend = buy_clean, yend = next_year), color = "grey") +
   geom_point(aes(y = start_year, color = "Start Year"), size = 3) +
   geom_point(aes(y = next_year, color = "First Year Lowered"), size = 3) +
@@ -71,55 +72,48 @@ ggplot(cadence_df, aes(x = reorder(buy_clean, start_year), y = start_year)) +
   theme_minimal() +
   theme(
   axis.text =  element_text(family="inter",
-                                  size = 15),
+                                  size = 25),
   axis.title = element_text(family="inter",
-                                  size = 20,
+                                  size = 30,
                             face="bold"),
   plot.title = element_text(family="inter",
                                   size = 35,
                             face="bold"),
   legend.title = element_blank(),
   legend.text = element_text(family="inter",
-                                  size = 15)
+                                  size = 25)
   
   )
+
+ggsave(here::here("images/cadence.png"), plot = cadence_plot, width = 7, height = 4, dpi = 320)
 ```
 
 ```{r}
 
 
 building_codes <- data_base_df %>% 
-  filter(primary_policy_category_broad == "Building Codes/Planning" | secondary_category_if_necessary == "Building Codes/Planning" )
+  filter(grepl("Building Codes/Planning", policy_category))
+  
+ 
+# Separate comma-separated values into their own rows
+separated_data <- building_codes %>%
+  separate_rows(methodology, sep = ",")
+
+# Count occurrences of each methodology
+methodology_counts <- separated_data %>%
+  count(methodology) 
+
+# Filter rows where the count is greater than 3
+filtered_counts <- methodology_counts %>%
+  filter(n > 3) %>% 
+  mutate(percentage = (n / sum(n)) * 100) 
 
 
-wb_lca <- building_codes %>% 
-  filter(second_methodology_if_necessary == "Whole-Building Carbon Reduction" | methodology == "Whole-Building Carbon Reduction")
-
-n_lca <- nrow(wb_lca)
-
-report <- building_codes %>% 
-  filter(second_methodology_if_necessary == "Reporting/Analysis Requirement" | methodology == "Reporting/Analysis Requirement")
-
-n_report <- nrow(report)
-
-gbd <- building_codes %>% 
-  filter(second_methodology_if_necessary == "Green Building Design" | methodology == "Green Building Design")
-
-n_gbd <- nrow(gbd)
-
-total_policies <- n_lca + n_report + n_gbd
-
-strategy_counts <- c(n_gbd, n_report, n_lca)
-
-
-methodology <- data.frame(Methodology = c("Green Building Design", "Reporting/Analysis", "Whole-Building Carbon Reduction" ), Count =c(nrow(gbd), nrow(report), nrow(wb_lca)))
-
-strategy_percentages <- paste(round((strategy_counts / total_policies) * 100,0), "%")
 
 # Plot using ggplot
-ggplot(methodology, aes(x = Methodology, y = Count, fill = Methodology)) +
+method_plot <- ggplot(filtered_counts, aes(x = methodology, y = n, fill = methodology)) +
   geom_bar(stat = "identity") +
-  geom_text(aes(label = strategy_percentages), vjust = 2, size = 10, family="inter") +
+  geom_text(aes(label = paste0(round(percentage, 1), "%")), vjust = 2, size = 10, family="inter") +
   scale_y_continuous(breaks = c(1:12))+
   labs(title = "Building Code/Planning Strategies",
        x = "Strategy",
@@ -129,12 +123,14 @@ ggplot(methodology, aes(x = Methodology, y = Count, fill = Methodology)) +
   theme(
         legend.position="none",
          axis.text =  element_text(family="inter",
-                                  size = 15),
+                                  size = 25),
   axis.title = element_text(family="inter",
-                                  size = 20,
+                                  size = 25,
                             face="bold"),
         plot.title=element_text(family="inter",
                                   size = 30,
                                 hjust=0.5)
   )
+
+ggsave(here::here("images/building_codes.png"), plot = method_plot, width = 7, height = 4, dpi = 320)
 ```

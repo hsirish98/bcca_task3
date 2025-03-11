@@ -26,28 +26,25 @@ showtext_auto()
 ```
 
 ```{r}
-
-
 ##read in database
-data_base <- read_csv(here::here("data/Working_Policy_Database.csv")) %>% 
+data_base <- read_csv(here::here("data/Working_Policy_Database_1.csv")) %>% 
   janitor::clean_names() 
   
  ##select main descriptive policies 
 ##please note field names and update if necessary
 jurisdiction_df <- data_base %>% 
   select(title_of_policy, ##title of policy
-         lat, ##latitude,
-         lon, ##longitude
-         legal_status, ##denoting statutory vs. non
-         primary_policy_category_broad, ##main category of policy (clean procurement, building codes/planning)
-         secondary_category_if_necessary, ##second category of policy
-         primary_subcategory, ##main subcategory (buy clean, building code,etc.)
-         secondary_subcategory_if_necessary, ##second subcategory
+         # lat, ##latitude,
+         # lon, ##longitude
+         # legal_status, ##denoting statutory vs. non
+         policy_category, ##main category of policy (clean procurement, building codes/planning)
+         policy_subcategory, 
          methodology, ##method of achieving carbon reduction
          participation, ##mandatory vs. voluntary
          location, ##specific location 
          country, ##country where policy is implemented
-         jurisdiction) ##places the policy covers 
+         jurisdiction)
+
 
 ##remove nas
 jurisdiction_df_clean <- jurisdiction_df[!is.na(jurisdiction_df$jurisdiction), ]
@@ -62,32 +59,32 @@ policy_category_pallette <- c("Climate Commitment" = "#29af7FFF",
 ```{r}
 
 
+policies_expanded <- jurisdiction_df_clean %>%
+  separate_rows(policy_category, policy_subcategory, sep = ",") %>%
+  mutate(
+    policy_category = str_trim(policy_category),     # Removes leading and trailing whitespace
+    policy_subcategory = str_trim(policy_subcategory) # Removes leading and trailing whitespace
+  )
+# 
 
 jurisdiction_factor <- c("City", "U.S. County", "State", "National", "International")
 
-type_jurisdiction <- jurisdiction_df_clean %>% 
+type_jurisdiction <- policies_expanded %>% 
   filter(jurisdiction != "Association/Group") %>% 
   mutate(jurisdiction=factor(jurisdiction, levels=jurisdiction_factor))
 
 
-type_primary <- type_jurisdiction %>% 
-  group_by(jurisdiction, primary_policy_category_broad) %>% 
+type_combined <- type_jurisdiction %>% 
+  group_by(jurisdiction, policy_category) %>% 
   summarize(count = n()) %>% 
-  rename("category" = primary_policy_category_broad)
+  rename("category" = policy_category)
 
-type_secondary <- type_jurisdiction %>% 
-  select(jurisdiction, secondary_category_if_necessary) %>% 
-  drop_na() %>% 
-  group_by(jurisdiction, secondary_category_if_necessary) %>%
-  summarize(count = n()) %>% 
-  rename("category" = secondary_category_if_necessary)
-
-type_combined <- rbind(type_primary, type_secondary)
 
 jurisdiction_cat_graph_ready <- type_combined %>% 
     group_by(jurisdiction, category) %>% 
   summarise(total = sum(count))
 
+unique(jurisdiction_cat_graph_ready$category)
 
 stacked_type_jur <- ggplot(data=jurisdiction_cat_graph_ready, aes(x=category, y=total, fill=jurisdiction)) +
   geom_bar(stat="identity")+

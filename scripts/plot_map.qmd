@@ -36,20 +36,17 @@ Read in data -- names of fields may need to be updated if versions of the databa
 ```{r}
 
 ##read in database
-data_base <- read_csv(here::here("data/Working_Policy_Database.csv")) %>% 
+data_base <- read_csv(here::here("data/Working_Policy_Database_1.csv")) %>% 
   janitor::clean_names() 
   
  ##select main descriptive policies 
 ##please note field names and update if necessary
 lat_lon_df <- data_base %>% 
-  select(title_of_policy, ##title of policy
+  select(
          lat, ##latitude,
          lon, ##longitude
          legal_status, ##denoting statutory vs. non
-         primary_policy_category_broad, ##main category of policy (clean procurement, building codes/planning)
-         secondary_category_if_necessary, ##second category of policy
-         primary_subcategory, ##main subcategory (buy clean, building code,etc.)
-         secondary_subcategory_if_necessary, ##second subcategory
+         policy_category, ##main category of policy (clean procurement, building codes/planning)
          methodology, ##method of achieving carbon reduction
          participation, ##mandatory vs. voluntary
          location, ##specific location 
@@ -65,21 +62,24 @@ lat_lon_df <- lat_lon_df[!is.na(lat_lon_df$lat), ]
 data_sf <- st_as_sf(lat_lon_df, coords = c("lon", "lat"), crs = 4326)
 
 
+clean_map <- data_sf %>%
+  separate_rows(policy_category, sep = ",") %>% 
+  mutate(policy_category = trimws(policy_category))
 
 ```
 
 Policy Category Wrangling + Color Palette
 
 ```{r}
-
-##make object "unique_types" which contains the distince policy categories
-unique_types <- unique(data_sf$primary_policy_category_broad)
-
-##look at the types so you can make the palette
-unique_types
-
-##make sure to remove any extra rows that might have an na in the category section
-data_category_remove_na <- data_sf[!is.na(data_sf$primary_policy_category_broad), ]
+# 
+# ##make object "unique_types" which contains the distince policy categories
+# unique_types <- unique(data_sf$primary_policy_category_broad)
+# 
+# ##look at the types so you can make the palette
+# unique_types
+# 
+# ##make sure to remove any extra rows that might have an na in the category section
+# data_category_remove_na <- data_sf[!is.na(data_sf$primary_policy_category_broad), ]
 
 
 
@@ -109,8 +109,8 @@ geom_world <- ggplot()+
 
 ##add the data to map to create map object with policies 
 geom_with_points <- geom_world + 
-  geom_sf(data = data_category_remove_na, 
-          aes(color = primary_policy_category_broad), ##plot color by category type
+  geom_sf(data = clean_map, 
+          aes(color = policy_category), ##plot color by category type
           fill = "black", size = 3, shape = 18,  alpha=0.75) + ##make shapes of points 
   scale_color_manual(values = policy_category_pallette) + ##set the category to have the palette colors
   labs(title = "Map of Embodied Carbon Policies by  Category")+

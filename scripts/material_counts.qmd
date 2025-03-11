@@ -20,7 +20,7 @@ Read in policy database
 ```{r}
 
 ##
-policy_database <- read_csv(here::here("data/Working_Policy_Database.csv")) %>%
+policy_database <- read_csv(here::here("data/Working_Policy_Database_1.csv")) %>%
   janitor::clean_names()
   # Convert the "materials" column to lowercase so they'll be captured appropriately
   policy_database$covered_material_s <- tolower(policy_database$covered_material_s)
@@ -31,130 +31,130 @@ Count the mentions of each material
 
 ```{r}
 
-policy_database_mat_sep <- policy_database %>%
-  mutate(parsed_values = strsplit(covered_material_s, ",")) %>% 
-  select(parsed_values)
-
-material_test <- policy_database_mat_sep %>%
-  unnest(parsed_values) %>% 
-  drop_na()
-
-material_list_unique <- unique(material_test)
-
-
-## from here you will need to look at this list and use your eyes to determine the unique materials
-
-
-##make a list of the materials to capture; this will be CONTAINING these words so if something needs to be distinct, make it so
-material_list <- c("aluminum", "asphalt", "brick", "cement", "concrete", "concrete reinforcing steel", "glass", "wood",  "mineral wood", "insulation", "iron", "rebar", "steel", "timber")
-
-##we will deal with things being the same later (aka rebar and concrete reinforcing steel)
-
-
-##initialize material column to 0 in policy_database
-for (material in material_list) {
-  policy_database[[material]] <- 0
-}
-
-
-
-for (material in material_list){
-  policy_database[[material]] <- str_count(policy_database$covered_material_s, material)
-}
-
-
-
-## label as 1 if the material is included and as 0 if it's not
-for(material in material_list){
-  policy_database[[material]] <- ifelse(policy_database[[material]] >0 ,1,0)
-}
-
-# new database to investigate that functions worked correctly
-policy_database_materials <- policy_database %>%
-  select(legal_status, title_of_policy, primary_policy_category_broad, secondary_category_if_necessary,jurisdiction, primary_subcategory, secondary_subcategory_if_necessary, covered_material_s, other:ncol(policy_database)) %>% 
-  select(-other)
-
+# policy_database_mat_sep <- policy_database %>%
+#   mutate(parsed_values = strsplit(covered_material_s, ",")) %>% 
+#   select(parsed_values)
 # 
-# buy_clean_tidy <-  policy_database %>%
-#   filter(primary_subcategory =="Buy Clean" || secondary_subcategory_if_necessary == "Buy Clean") %>%
-#   select(policy_type, other:ncol(policy_database))
-
-# sum the material counts to get total policies which mention them
-sums_df_nontidy <- policy_database_materials %>%
-  summarise_at(c(9:ncol(policy_database_materials)), sum, na.rm = TRUE) %>% pivot_longer(., cols=everything(), values_to="n_policies")
-
-## we now need to remove some duplicates which will require the use of human eyes and brain. 
-
-## we need to find the uses of "wood" which really actually only are wood
-
-wood_pol <- policy_database_materials %>% 
-  filter(wood>0 & `mineral wood` >0) %>% 
-  select(`mineral wood`, wood, covered_material_s)
-##above is the amount that contain both "mineral wood" as well as "wood" -- read through them and save into the following the number that contain both but it's JUST because the word "wood" is included in "mineral wood"
-
-wood_to_remove <- 4 ## I have saved 4 (all of them)
-
-
-##concrete reinforcing steel will count as "concrete" but it shouldn't!
-crs_concrete <- policy_database_materials %>% 
-  filter(`concrete reinforcing steel` > 0 & concrete > 0) %>% 
-  select(`concrete reinforcing steel`, concrete, covered_material_s)
-
-
-crs_to_remove <- 4 ## I have saved 4 (all of them) (this is unsurpising)
-
-##these above have all been the same 4 policies causing an issue (@ california)
-
-#rebar and steel will be the same so we're going to make sure there are no double counts
-
-rebar_steel <- policy_database_materials %>% 
-  filter(rebar > 0 & steel > 0) %>% 
-  select(rebar, steel, covered_material_s)
-
-rebar_steel_to_remove <- 3 ##3 contain both "rebar" AND "steel"
-
-
-
-timber_to_add <- sum(policy_database_materials$timber, na.rm = TRUE)
-
-sums_df_tidy <- sums_df_nontidy %>%
-  mutate(subtract = case_when(
-    name == "wood" ~ wood_to_remove, ## removing "mineral wood board insulation" from "wood"
-    name == "concrete" ~ crs_to_remove, ##removing concrete reinforcing steel from "concrete"
-    name == "rebar" ~ rebar_steel_to_remove)) %>%  ##removing rebar where it ALSO mentions steel separately,
-    mutate(add = ifelse(
-      name == "wood",timber_to_add,0)) %>% 
-  mutate(subtract = ifelse(is.na(subtract), 0, subtract)) %>%
-  mutate(n_final = n_policies-subtract+add) %>%
-  filter(!name %in% c("rebar", "concrete reinforcing steel", "cement", "timber", "mineral wood")) %>% 
-  mutate(name = factor(name, levels = name[order(-n_final)]))
-
-
-
-
-overall_mat_plot <- ggplot(sums_df_tidy, aes(x = name, y = n_final)) +
-  geom_bar(stat="identity") +
-  scale_y_continuous(breaks = seq(0, max(sums_df_tidy$n_final), by = 2)) +
-  labs(x= "Material", y="Count", title="Number of Policies Addressing Each Material")+
-  theme_minimal()  +
-  theme(plot.title = element_text(hjust = 0.5,
-                                  face = "bold",
-                                  family = "inter",
-                                  size =12),
-        axis.title = element_text(face = "bold",
-                                  family="inter",
-                                  size = 10,
-                                  vjust = -2),
-        axis.text =  element_text(
-                                  family="inter",
-                                  size = 10),
-        legend.position = "none") 
-
-overall_mat_plot
-  
-
-ggsave(here::here("images/all_policies_materials.png"), plot = overall_mat_plot, width = 7, height = 4, dpi = 320)
-
+# material_test <- policy_database_mat_sep %>%
+#   unnest(parsed_values) %>% 
+#   drop_na()
+# 
+# material_list_unique <- unique(material_test)
+# 
+# 
+# ## from here you will need to look at this list and use your eyes to determine the unique materials
+# 
+# 
+# ##make a list of the materials to capture; this will be CONTAINING these words so if something needs to be distinct, make it so
+# material_list <- c("aluminum", "asphalt", "brick", "cement", "concrete", "concrete reinforcing steel", "glass", "wood",  "mineral wood", "insulation", "iron", "rebar", "steel", "timber")
+# 
+# ##we will deal with things being the same later (aka rebar and concrete reinforcing steel)
+# 
+# 
+# ##initialize material column to 0 in policy_database
+# for (material in material_list) {
+#   policy_database[[material]] <- 0
+# }
+# 
+# 
+# 
+# for (material in material_list){
+#   policy_database[[material]] <- str_count(policy_database$covered_material_s, material)
+# }
+# 
+# 
+# 
+# ## label as 1 if the material is included and as 0 if it's not
+# for(material in material_list){
+#   policy_database[[material]] <- ifelse(policy_database[[material]] >0 ,1,0)
+# }
+# 
+# # new database to investigate that functions worked correctly
+# policy_database_materials <- policy_database %>%
+#   select(legal_status, title_of_policy, policy_category, policy_subcategory, jurisdiction, covered_material_s, other:ncol(policy_database)) %>% 
+#   select(-other)
+# 
+# # 
+# # buy_clean_tidy <-  policy_database %>%
+# #   filter(primary_subcategory =="Buy Clean" || secondary_subcategory_if_necessary == "Buy Clean") %>%
+# #   select(policy_type, other:ncol(policy_database))
+# 
+# # sum the material counts to get total policies which mention them
+# sums_df_nontidy <- policy_database_materials %>%
+#   summarise_at(c(9:ncol(policy_database_materials)), sum, na.rm = TRUE) %>% pivot_longer(., cols=everything(), values_to="n_policies")
+# 
+# ## we now need to remove some duplicates which will require the use of human eyes and brain. 
+# 
+# ## we need to find the uses of "wood" which really actually only are wood
+# 
+# wood_pol <- policy_database_materials %>% 
+#   filter(wood>0 & `mineral wood` >0) %>% 
+#   select(`mineral wood`, wood, covered_material_s)
+# ##above is the amount that contain both "mineral wood" as well as "wood" -- read through them and save into the following the number that contain both but it's JUST because the word "wood" is included in "mineral wood"
+# 
+# wood_to_remove <- 4 ## I have saved 4 (all of them)
+# 
+# 
+# ##concrete reinforcing steel will count as "concrete" but it shouldn't!
+# crs_concrete <- policy_database_materials %>% 
+#   filter(`concrete reinforcing steel` > 0 & concrete > 0) %>% 
+#   select(`concrete reinforcing steel`, concrete, covered_material_s)
+# 
+# 
+# crs_to_remove <- 4 ## I have saved 4 (all of them) (this is unsurpising)
+# 
+# ##these above have all been the same 4 policies causing an issue (@ california)
+# 
+# #rebar and steel will be the same so we're going to make sure there are no double counts
+# 
+# rebar_steel <- policy_database_materials %>% 
+#   filter(rebar > 0 & steel > 0) %>% 
+#   select(rebar, steel, covered_material_s)
+# 
+# rebar_steel_to_remove <- 3 ##3 contain both "rebar" AND "steel"
+# 
+# 
+# 
+# timber_to_add <- sum(policy_database_materials$timber, na.rm = TRUE)
+# 
+# sums_df_tidy <- sums_df_nontidy %>%
+#   mutate(subtract = case_when(
+#     name == "wood" ~ wood_to_remove, ## removing "mineral wood board insulation" from "wood"
+#     name == "concrete" ~ crs_to_remove, ##removing concrete reinforcing steel from "concrete"
+#     name == "rebar" ~ rebar_steel_to_remove)) %>%  ##removing rebar where it ALSO mentions steel separately,
+#     mutate(add = ifelse(
+#       name == "wood",timber_to_add,0)) %>% 
+#   mutate(subtract = ifelse(is.na(subtract), 0, subtract)) %>%
+#   mutate(n_final = n_policies-subtract+add) %>%
+#   filter(!name %in% c("rebar", "concrete reinforcing steel", "cement", "timber", "mineral wood")) %>% 
+#   mutate(name = factor(name, levels = name[order(-n_final)]))
+# 
+# 
+# 
+# 
+# overall_mat_plot <- ggplot(sums_df_tidy, aes(x = name, y = n_final)) +
+#   geom_bar(stat="identity") +
+#   scale_y_continuous(breaks = seq(0, max(sums_df_tidy$n_final), by = 2)) +
+#   labs(x= "Material", y="Count", title="Number of Policies Addressing Each Material")+
+#   theme_minimal()  +
+#   theme(plot.title = element_text(hjust = 0.5,
+#                                   face = "bold",
+#                                   family = "inter",
+#                                   size =12),
+#         axis.title = element_text(face = "bold",
+#                                   family="inter",
+#                                   size = 10,
+#                                   vjust = -2),
+#         axis.text =  element_text(
+#                                   family="inter",
+#                                   size = 10),
+#         legend.position = "none") 
+# 
+# overall_mat_plot
+#   
+# 
+# ggsave(here::here("images/all_policies_materials.png"), plot = overall_mat_plot, width = 7, height = 4, dpi = 320)
+# 
 
 
 
@@ -164,8 +164,8 @@ ggsave(here::here("images/all_policies_materials.png"), plot = overall_mat_plot,
 
 ```{r}
 
-legal_stat <- policy_database_materials %>%
-  select(legal_status, aluminum:ncol(policy_database_materials)) 
+legal_stat <- policy_database %>%
+  select(legal_status, concrete:glass) 
 
 
 ##I checked that statutory has all the problematic ones from above so I'm going to use the same code otherwise repeat checking process by jurisdiction type sorry!
@@ -178,8 +178,7 @@ nonstat_df <- legal_stat %>%
   ) %>% 
    filter(!is.na(material)) %>% 
   group_by(legal_status, name) %>% 
-  summarize(total = sum(material)) %>%
-filter(!name %in% c("rebar", "concrete reinforcing steel", "cement", "timber", "mineral wood"))
+  summarize(total = sum(material)) 
 
 statutory_df <- legal_stat %>%
   filter(legal_status == "Statutory") %>% 
@@ -189,21 +188,12 @@ statutory_df <- legal_stat %>%
   ) %>% 
    filter(!is.na(material)) %>% 
   group_by(legal_status, name) %>% 
-  summarize(total = sum(material)) %>% 
-  mutate(subtract = case_when(
-    name == "wood" ~ wood_to_remove, ## removing "mineral wood board insulation" from "wood"
-    name == "concrete" ~ crs_to_remove, ##removing concrete reinforcing steel from "concrete"
-    name == "rebar"  ~ rebar_steel_to_remove)) %>% 
-  mutate(add = ifelse(
-      name == "wood" & legal_status == "Statutory",timber_to_add,0))%>% 
-  mutate(subtract = ifelse(is.na(subtract), 0, subtract)) %>%
-  mutate(n_final = total-subtract+add) %>%
-  filter(!name %in% c("rebar", "concrete reinforcing steel", "cement", "timber", "mineral wood")) %>% 
-  select(legal_status, name, total)
+  summarize(total = sum(material)) 
+ 
 
 legal_stat_comb <- rbind(nonstat_df, statutory_df)
 
-specific_names_legal <- c("wood"="Wood",  "steel"="Steel/Rebar", "insulation"="Insulation", "glass"="Glass", "concrete"="Concrete","asphalt"="Asphalt", "aluminum"="Aluminum", "brick" = "Brick", "iron" = "Iron")
+specific_names_legal <- c("wood_timber"="Wood",  "steel_rebar"="Steel/Rebar", "insulation"="Insulation", "glass"="Glass", "concrete"="Concrete","asphalt"="Asphalt", "aluminum"="Aluminum", "brick" = "Brick", "iron" = "Iron")
 
 legal_mat_plot <- ggplot(legal_stat_comb, aes(x = name, y = total, fill = legal_status)) +
   geom_bar(stat = "identity") +
@@ -214,9 +204,9 @@ legal_mat_plot <- ggplot(legal_stat_comb, aes(x = name, y = total, fill = legal_
   theme_minimal() +
   theme(legend.position = "none",
          axis.text =  element_text(family="inter",
-                                  size = 10),
+                                  size = 20),
   axis.title = element_text(family="inter",
-                                  size = 15,
+                                  size = 40,
                             face="bold"),
         plot.title=element_text(family="inter",
                                   size = 30,
